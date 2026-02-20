@@ -203,6 +203,10 @@ Pontos em que foi necessario ajuste manual apos geracao:
 - correcoes de seguranca no HTML de relatorios (escape de campos interpolados)
 - alinhamento de filtros no relatorio para evitar KPI inconsistente sob busca textual
 
+### Comprovacao visual do uso do Codex
+<img src="screenshots/Captura%20de%20tela%202026-02-20%20180316.png" alt="Uso do Codex - captura 1" width="900" />
+<img src="screenshots/Captura%20de%20tela%202026-02-20%20181324.png" alt="Uso do Codex - captura 2" width="900" />
+
 ## 9) O que nao funcionou / limitacoes (analise critica real)
 Limitacoes tecnicas observadas no estado atual:
 - upload aceita apenas CSV (nao ha suporte nativo a XLSX nesta versao).
