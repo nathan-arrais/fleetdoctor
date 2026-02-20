@@ -4,18 +4,90 @@
 
 :root {
   font-family: "IBM Plex Sans", "Space Grotesk", system-ui, sans-serif;
-  color: #0f172a;
-  background-color: #f8fafc;
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  color: #0f172a;
   background: radial-gradient(1200px 800px at 10% 10%, #ecfeff 0%, #f8fafc 40%, #f1f5f9 100%);
 }
 
 * {
   box-sizing: border-box;
+}
+
+html.dark body {
+  color: #e2e8f0;
+  background: radial-gradient(1200px 800px at 10% 10%, #0f172a 0%, #020617 45%, #000000 100%);
+}
+
+@layer base {
+  .dark .bg-white {
+    @apply bg-slate-900;
+  }
+
+  .dark .bg-slate-50 {
+    @apply bg-slate-800;
+  }
+
+  .dark .border-slate-300 {
+    @apply border-slate-600;
+  }
+
+  .dark .border-slate-200 {
+    @apply border-slate-700;
+  }
+
+  .dark .border-slate-100 {
+    @apply border-slate-800;
+  }
+
+  .dark .text-slate-900 {
+    @apply text-slate-100;
+  }
+
+  .dark .text-slate-800 {
+    @apply text-slate-100;
+  }
+
+  .dark .text-slate-700 {
+    @apply text-slate-200;
+  }
+
+  .dark .text-slate-600 {
+    @apply text-slate-300;
+  }
+
+  .dark .text-slate-500 {
+    color: rgb(148 163 184 / var(--tw-text-opacity, 1));
+  }
+
+  .dark .text-slate-400 {
+    color: rgb(100 116 139 / var(--tw-text-opacity, 1));
+  }
+
+  .dark .hover\:bg-slate-50:hover {
+    @apply bg-slate-800;
+  }
+
+  .dark .hover\:bg-slate-100:hover {
+    @apply bg-slate-800;
+  }
+
+  .dark input,
+  .dark select,
+  .dark textarea {
+    @apply bg-slate-900 text-slate-100;
+  }
 }
 
 .container-max {
