@@ -17,7 +17,7 @@ Requisitos:
 
 Como clonar:
 ```bash
-git clone <URL_DO_REPOSITORIO>
+git clone https://github.com/nathan-arrais/fleetdoctor
 cd fleetdoctor
 ```
 
@@ -41,9 +41,10 @@ npm install
 npm run dev
 ```
 
-## Links de entrega (preencher antes da avaliacao)
-- Endpoint publico: `<ADICIONAR_LINK_ENDPOINT_PUBLICO>`
-- Repositorio GitHub: `<ADICIONAR_LINK_REPOSITORIO>`
+## Links de entrega
+- Frontend (Vercel): `https://fleetdoctor.vercel.app/`
+- Backend (Render): `https://fleetdoctor.onrender.com/`
+- Repositorio GitHub: `https://github.com/nathan-arrais/fleetdoctor`
 
 Checklist rapido antes da aula:
 - backend responde em `/api/health`
