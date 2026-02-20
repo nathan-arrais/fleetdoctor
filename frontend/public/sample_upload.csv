@@ -1,0 +1,6 @@
+vehicle_id,plate,trip_id,event_type,severity,timestamp,description,value_num
+V-1001,ABC1234,T-2001,delay,high,2026-02-18T10:15:00,Atraso de entrega,75
+V-1001,ABC1234,T-2001,temp_out_of_range,medium,2026-02-18T10:45:00,Temperatura acima do limite,9.2
+V-1002,,T-2002,excessive_stops,low,2026-02-18T12:30:00,Excesso de paradas,8
+V-1003,DEF5678,T-2003,excessive_idle,medium,2026-02-18T14:10:00,Tempo parado elevado,95
+V-1004,GHI9012,T-2004,route_deviation,high,2026-02-18T16:05:00,Desvio de rota detectado,
