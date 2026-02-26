@@ -14,6 +14,12 @@ from .output_validation import parse_and_validate_diagnosis
 
 
 PROMPTS_DIR = Path(__file__).resolve().parents[3] / "prompts"
+DIAGNOSIS_JSON_RETRY_HINT = (
+    "\n\nIMPORTANTE: responda SOMENTE com JSON valido no formato "
+    '{"severity":"low|medium|high|critical","summary":"...","probable_causes":["..."],'
+    '"recommended_actions":["..."],"evidence":["..."]}. '
+    "Nao inclua markdown nem texto fora do JSON."
+)
 
 
 @lru_cache(maxsize=16)
@@ -39,6 +45,16 @@ def _build_user_prompt(mode: str, context: dict[str, Any], tool_results: dict[st
         similar_events_json=json.dumps(tool_results.get("similar_events", []), ensure_ascii=False, indent=2),
         vehicle_history_json=json.dumps(tool_results.get("vehicle_history", {}), ensure_ascii=False, indent=2),
     )
+
+
+def _should_retry_diagnosis_output(errors: list[str]) -> bool:
+    lowered = " | ".join(errors).lower()
+    retry_markers = [
+        "resposta vazia",
+        "json",
+        "campo summary ausente ou vazio",
+    ]
+    return any(marker in lowered for marker in retry_markers)
 
 
 def _metadata_payload(
@@ -123,6 +139,38 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
 
         fallback_severity = str(state["context"]["event"].get("severity", "low"))
         parsed, errors = parse_and_validate_diagnosis(state.get("llm_text", ""), fallback_severity=fallback_severity)
+        if parsed is None and max(settings.retry_json_invalid, 0) > 0 and _should_retry_diagnosis_output(errors):
+            retry_prompt = state.get("user_prompt", "") + DIAGNOSIS_JSON_RETRY_HINT
+            try:
+                retry_result = provider.generate(
+                    state.get("system_prompt", ""),
+                    retry_prompt,
+                    preferred_model=state.get("llm_model"),
+                )
+                retry_parsed, retry_errors = parse_and_validate_diagnosis(
+                    retry_result.get("text", ""),
+                    fallback_severity=fallback_severity,
+                )
+                if retry_parsed is not None:
+                    retry_note = "Retry de JSON aplicado apos falha inicial: " + "; ".join(errors)
+                    return {
+                        **state,
+                        "llm_text": retry_result.get("text", ""),
+                        "llm_model": retry_result.get("model"),
+                        "llm_latency_ms": retry_result.get("latency_ms"),
+                        "diagnosis": _metadata_payload(
+                            retry_parsed,
+                            source="llm",
+                            model=retry_result.get("model"),
+                            latency_ms=retry_result.get("latency_ms"),
+                            used_tools=state.get("used_tools"),
+                            validation_warnings=[retry_note] + retry_errors,
+                        ),
+                        "source": "llm",
+                    }
+                errors = errors + ["Retry de JSON falhou: " + "; ".join(retry_errors)]
+            except Exception as retry_exc:
+                errors = errors + [f"Retry de JSON falhou: {retry_exc}"]
         if parsed is None:
             return {**state, "validation_errors": errors, "fallback_reason": "; ".join(errors)}
         return {
@@ -149,6 +197,7 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
                 latency_ms=state.get("llm_latency_ms"),
                 used_tools=state.get("used_tools"),
                 fallback_reason=state.get("fallback_reason") or "Fallback acionado por validacao",
+                validation_warnings=state.get("validation_errors", []),
             ),
             "source": "deterministic_fallback",
         }
@@ -243,6 +292,38 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
             return state
         fallback_severity = "low"
         parsed, errors = parse_and_validate_diagnosis(state.get("llm_text", ""), fallback_severity=fallback_severity)
+        if parsed is None and max(settings.retry_json_invalid, 0) > 0 and _should_retry_diagnosis_output(errors):
+            retry_prompt = state.get("user_prompt", "") + DIAGNOSIS_JSON_RETRY_HINT
+            try:
+                retry_result = provider.generate(
+                    state.get("system_prompt", ""),
+                    retry_prompt,
+                    preferred_model=state.get("llm_model"),
+                )
+                retry_parsed, retry_errors = parse_and_validate_diagnosis(
+                    retry_result.get("text", ""),
+                    fallback_severity=fallback_severity,
+                )
+                if retry_parsed is not None:
+                    retry_note = "Retry de JSON aplicado apos falha inicial: " + "; ".join(errors)
+                    return {
+                        **state,
+                        "llm_text": retry_result.get("text", ""),
+                        "llm_model": retry_result.get("model"),
+                        "llm_latency_ms": retry_result.get("latency_ms"),
+                        "diagnosis": _metadata_payload(
+                            retry_parsed,
+                            source="llm",
+                            model=retry_result.get("model"),
+                            latency_ms=retry_result.get("latency_ms"),
+                            used_tools=state.get("used_tools"),
+                            validation_warnings=[retry_note] + retry_errors,
+                        ),
+                        "source": "llm",
+                    }
+                errors = errors + ["Retry de JSON falhou: " + "; ".join(retry_errors)]
+            except Exception as retry_exc:
+                errors = errors + [f"Retry de JSON falhou: {retry_exc}"]
         if parsed is None:
             return {**state, "validation_errors": errors, "fallback_reason": "; ".join(errors)}
         return {
@@ -269,6 +350,7 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
                 latency_ms=state.get("llm_latency_ms"),
                 used_tools=state.get("used_tools"),
                 fallback_reason=state.get("fallback_reason") or "Fallback acionado por validacao",
+                validation_warnings=state.get("validation_errors", []),
             ),
             "source": "deterministic_fallback",
         }

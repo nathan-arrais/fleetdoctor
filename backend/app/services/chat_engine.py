@@ -15,6 +15,11 @@ from .output_validation import parse_and_validate_chat_response
 
 
 PROMPTS_DIR = Path(__file__).resolve().parents[3] / "prompts"
+CHAT_JSON_RETRY_HINT = (
+    "\n\nIMPORTANTE: responda SOMENTE com JSON valido no formato "
+    '{"answer":"...","citations":["..."],"follow_up_questions":["..."]}. '
+    "Nao inclua markdown nem texto fora do JSON."
+)
 
 
 def _now_utc() -> datetime:
@@ -172,6 +177,16 @@ def _build_user_prompt(
         history_json=json.dumps(history, ensure_ascii=False, indent=2),
         tool_results_json=json.dumps(tool_results, ensure_ascii=False, indent=2),
     )
+
+
+def _should_retry_chat_output(errors: list[str]) -> bool:
+    lowered = " | ".join(errors).lower()
+    retry_markers = [
+        "resposta vazia",
+        "json",
+        "campo answer ausente ou vazio",
+    ]
+    return any(marker in lowered for marker in retry_markers)
 
 
 def _build_fallback_answer(intent: str, question: str, tool_results: dict[str, Any], warnings: list[str]) -> dict[str, Any]:
@@ -343,7 +358,46 @@ def ask_chat(
             errors = list(state.get("validation_errors", []))
             parsed, warnings = parse_and_validate_chat_response(state.get("llm_text", ""))
             if parsed is None:
-                all_errors = errors + warnings
+                parse_errors = list(warnings)
+                should_retry = max(settings.retry_json_invalid, 0) > 0 and _should_retry_chat_output(parse_errors)
+                if should_retry:
+                    retry_prompt = state.get("user_prompt", "") + CHAT_JSON_RETRY_HINT
+                    try:
+                        retry_result = provider.generate(
+                            state.get("system_prompt", ""),
+                            retry_prompt,
+                            preferred_model=state.get("llm_model"),
+                        )
+                        retry_parsed, retry_warnings = parse_and_validate_chat_response(retry_result.get("text", ""))
+                        if retry_parsed is not None:
+                            retry_note = (
+                                "Retry de JSON aplicado apos falha inicial: " + "; ".join(parse_errors)
+                            )
+                            return {
+                                **state,
+                                "llm_text": retry_result.get("text", ""),
+                                "llm_model": retry_result.get("model"),
+                                "llm_latency_ms": retry_result.get("latency_ms"),
+                                "answer_payload": {
+                                    "answer": retry_parsed["answer"],
+                                    "citations": retry_parsed.get("citations", []),
+                                    "follow_up_questions": retry_parsed.get("follow_up_questions", []),
+                                    "source": "llm",
+                                    "model": retry_result.get("model"),
+                                    "latency_ms": retry_result.get("latency_ms"),
+                                    "used_tools": state.get("used_tools", []),
+                                    "fallback_reason": None,
+                                    "validation_warnings": errors + [retry_note] + retry_warnings,
+                                },
+                                "validation_errors": [],
+                            }
+                        parse_errors = parse_errors + [
+                            "Retry de JSON falhou: " + "; ".join(retry_warnings)
+                        ]
+                    except Exception as retry_exc:
+                        parse_errors = parse_errors + [f"Retry de JSON falhou: {retry_exc}"]
+
+                all_errors = errors + parse_errors
                 return {**state, "validation_errors": all_errors, "fallback_reason": "; ".join(all_errors)}
             return {
                 **state,

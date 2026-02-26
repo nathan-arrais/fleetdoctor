@@ -81,11 +81,21 @@ def parse_and_validate_diagnosis(raw_text: str, fallback_severity: str = "low") 
     return normalized, errors
 
 
-def parse_and_validate_chat_response(raw_text: str) -> tuple[dict[str, Any] | None, list[str]]:
+def parse_and_validate_chat_response(raw_text: str, allow_text_fallback: bool = True) -> tuple[dict[str, Any] | None, list[str]]:
     warnings: list[str] = []
     try:
         payload = _extract_json_candidate(raw_text)
     except Exception as exc:
+        normalized_text = raw_text.strip()
+        if allow_text_fallback and normalized_text:
+            warnings.append(f"Resposta em texto livre; parse tolerante aplicado: {exc}")
+            warnings.append("Campo citations ausente ou vazio")
+            warnings.append("Campo follow_up_questions ausente ou vazio")
+            return {
+                "answer": normalized_text,
+                "citations": [],
+                "follow_up_questions": [],
+            }, warnings
         return None, [str(exc)]
 
     answer = str(payload.get("answer", "")).strip()

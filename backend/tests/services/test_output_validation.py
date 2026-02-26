@@ -23,3 +23,20 @@ def test_parse_chat_output_valido():
     assert payload["citations"] == ["get_dashboard_snapshot"]
     assert payload["follow_up_questions"] == ["Deseja recorte por regiao?"]
     assert warnings == []
+
+
+def test_parse_chat_output_texto_livre_aplica_parse_tolerante():
+    raw = "Resumo operacional: riscos de temperatura e ociosidade acima da media."
+    payload, warnings = parse_and_validate_chat_response(raw)
+
+    assert payload is not None
+    assert payload["answer"] == raw
+    assert payload["citations"] == []
+    assert payload["follow_up_questions"] == []
+    assert any("parse tolerante" in warning.lower() for warning in warnings)
+
+
+def test_parse_chat_output_vazio_sem_json_retorna_erro():
+    payload, warnings = parse_and_validate_chat_response("   ")
+    assert payload is None
+    assert warnings

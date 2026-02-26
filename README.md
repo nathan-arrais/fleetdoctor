@@ -122,13 +122,20 @@ Configuracoes por ambiente:
 - `LLM_TEMPERATURE` (default `0.2`)
 - `LLM_TOP_P` (default `0.9`)
 - `LLM_MAX_TOKENS` (default `500`)
-- `LLM_TIMEOUT_MS` (default `6000`)
+- `LLM_TIMEOUT_MS` (default `30000`)
+- `LLM_CONNECT_TIMEOUT_MS` (default `2000`)
+- `LLM_READ_TIMEOUT_MS` (default `30000`)
+- `OLLAMA_KEEP_ALIVE` (default `10m`)
+- `LLM_WARMUP_ON_STARTUP` (default `true`)
+- `LLM_RETRY_JSON_INVALID` (default `1`)
 - `LLM_FORCE_DETERMINISTIC` (forca fallback para testes/demo)
 
 Racional:
 - temperatura baixa para consistencia
 - top-p moderado para manter variacao controlada
-- timeout para nao degradar UX
+- timeout maior para absorver cold start local dos modelos
+- warmup para reduzir fallback por primeira chamada
+- retry curto para respostas sem JSON valido
 
 ## 8) Contrato de API de diagnostico
 

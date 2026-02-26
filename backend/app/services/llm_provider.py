@@ -1,6 +1,7 @@
 import os
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -21,10 +22,18 @@ class LLMSettings:
     temperature: float = field(default_factory=lambda: float(os.getenv("LLM_TEMPERATURE", "0.2")))
     top_p: float = field(default_factory=lambda: float(os.getenv("LLM_TOP_P", "0.9")))
     max_tokens: int = field(default_factory=lambda: int(os.getenv("LLM_MAX_TOKENS", "500")))
-    timeout_ms: int = field(default_factory=lambda: int(os.getenv("LLM_TIMEOUT_MS", "6000")))
+    timeout_ms: int = field(default_factory=lambda: int(os.getenv("LLM_TIMEOUT_MS", "30000")))
+    connect_timeout_ms: int = field(default_factory=lambda: int(os.getenv("LLM_CONNECT_TIMEOUT_MS", "2000")))
+    read_timeout_ms: int = field(default_factory=lambda: int(os.getenv("LLM_READ_TIMEOUT_MS", "30000")))
+    keep_alive: str = field(default_factory=lambda: os.getenv("OLLAMA_KEEP_ALIVE", "10m"))
+    warmup_on_startup: bool = field(default_factory=lambda: _as_bool(os.getenv("LLM_WARMUP_ON_STARTUP"), default=True))
+    retry_json_invalid: int = field(default_factory=lambda: int(os.getenv("LLM_RETRY_JSON_INVALID", "1")))
     force_deterministic: bool = field(
         default_factory=lambda: _as_bool(os.getenv("LLM_FORCE_DETERMINISTIC"), default=False)
     )
+
+
+_last_warmup_report: dict[str, Any] | None = None
 
 
 class OllamaProvider:
@@ -32,7 +41,10 @@ class OllamaProvider:
         self.settings = settings
 
     def _client(self) -> httpx.Client:
-        timeout = max(self.settings.timeout_ms, 200) / 1000
+        overall_timeout = max(self.settings.timeout_ms, 200) / 1000
+        connect_timeout = max(self.settings.connect_timeout_ms, 200) / 1000
+        read_timeout = max(self.settings.read_timeout_ms, 200) / 1000
+        timeout = httpx.Timeout(timeout=overall_timeout, connect=connect_timeout, read=read_timeout)
         return httpx.Client(timeout=timeout)
 
     def _available_models(self) -> list[str]:
@@ -81,6 +93,14 @@ class OllamaProvider:
             "fallback_model": self.settings.fallback_model,
             "available_models": available_models,
             "force_deterministic": self.settings.force_deterministic,
+            "timeouts": {
+                "overall_ms": self.settings.timeout_ms,
+                "connect_ms": self.settings.connect_timeout_ms,
+                "read_ms": self.settings.read_timeout_ms,
+            },
+            "keep_alive": self.settings.keep_alive,
+            "warmup_enabled": self.settings.warmup_on_startup,
+            "last_warmup": _last_warmup_report,
             "error": error_message,
         }
 
@@ -109,6 +129,7 @@ class OllamaProvider:
                     "system": system_prompt,
                     "prompt": user_prompt,
                     "stream": False,
+                    "keep_alive": self.settings.keep_alive,
                     "options": {
                         "temperature": self.settings.temperature,
                         "top_p": self.settings.top_p,
@@ -120,8 +141,11 @@ class OllamaProvider:
                     response.raise_for_status()
                     data = response.json()
                 elapsed_ms = int((time.perf_counter() - request_started) * 1000)
+                text = str(data.get("response", "")).strip()
+                if not text:
+                    raise ValueError("Resposta vazia do modelo")
                 return {
-                    "text": data.get("response", ""),
+                    "text": text,
                     "model": data.get("model", model),
                     "latency_ms": elapsed_ms,
                 }
@@ -129,3 +153,72 @@ class OllamaProvider:
                 model_errors.append(f"{model}: {exc}")
 
         raise RuntimeError("Todas as tentativas com Ollama falharam: " + " | ".join(model_errors))
+
+    def warmup(self) -> dict[str, Any]:
+        global _last_warmup_report
+
+        started_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        if not self.settings.warmup_on_startup:
+            report = {
+                "started_at": started_at,
+                "finished_at": started_at,
+                "enabled": False,
+                "skipped": True,
+                "reason": "Warmup desabilitado por configuracao",
+                "results": [],
+            }
+            _last_warmup_report = report
+            return report
+
+        if self.settings.force_deterministic:
+            report = {
+                "started_at": started_at,
+                "finished_at": started_at,
+                "enabled": True,
+                "skipped": True,
+                "reason": "LLM_FORCE_DETERMINISTIC habilitado",
+                "results": [],
+            }
+            _last_warmup_report = report
+            return report
+
+        base = self.settings.ollama_base_url.rstrip("/")
+        results: list[dict[str, Any]] = []
+        for model in self._models():
+            request_started = time.perf_counter()
+            try:
+                payload = {
+                    "model": model,
+                    "prompt": "Responda apenas com: ok",
+                    "stream": False,
+                    "keep_alive": self.settings.keep_alive,
+                    "options": {
+                        "temperature": 0.0,
+                        "top_p": 1.0,
+                        "num_predict": 8,
+                    },
+                }
+                with self._client() as client:
+                    response = client.post(f"{base}/api/generate", json=payload)
+                    response.raise_for_status()
+                    data = response.json()
+                elapsed_ms = int((time.perf_counter() - request_started) * 1000)
+                text = str(data.get("response", "")).strip()
+                if not text:
+                    raise ValueError("Resposta vazia do modelo")
+                results.append({"model": model, "ok": True, "latency_ms": elapsed_ms, "error": None})
+            except Exception as exc:
+                elapsed_ms = int((time.perf_counter() - request_started) * 1000)
+                results.append({"model": model, "ok": False, "latency_ms": elapsed_ms, "error": str(exc)})
+
+        finished_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        report = {
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "enabled": True,
+            "skipped": False,
+            "reason": None,
+            "results": results,
+        }
+        _last_warmup_report = report
+        return report
