@@ -16,8 +16,8 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
 class LLMSettings:
     provider: str = field(default_factory=lambda: os.getenv("LLM_PROVIDER", "ollama"))
     ollama_base_url: str = field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
-    primary_model: str = field(default_factory=lambda: os.getenv("OLLAMA_MODEL_PRIMARY", "qwen2.5:7b-instruct"))
-    fallback_model: str = field(default_factory=lambda: os.getenv("OLLAMA_MODEL_FALLBACK", "llama3.1:8b-instruct-q4_K_M"))
+    primary_model: str = field(default_factory=lambda: os.getenv("OLLAMA_MODEL_PRIMARY", "qwen2.5:7b"))
+    fallback_model: str = field(default_factory=lambda: os.getenv("OLLAMA_MODEL_FALLBACK", "llama3.1:8b"))
     temperature: float = field(default_factory=lambda: float(os.getenv("LLM_TEMPERATURE", "0.2")))
     top_p: float = field(default_factory=lambda: float(os.getenv("LLM_TOP_P", "0.9")))
     max_tokens: int = field(default_factory=lambda: int(os.getenv("LLM_MAX_TOKENS", "500")))
@@ -34,6 +34,17 @@ class OllamaProvider:
     def _client(self) -> httpx.Client:
         timeout = max(self.settings.timeout_ms, 200) / 1000
         return httpx.Client(timeout=timeout)
+
+    def _available_models(self) -> list[str]:
+        base = self.settings.ollama_base_url.rstrip("/")
+        try:
+            with self._client() as client:
+                response = client.get(f"{base}/api/tags")
+                response.raise_for_status()
+                data = response.json()
+            return [item.get("name", "") for item in data.get("models", []) if item.get("name")]
+        except Exception:
+            return []
 
     def _models(self, preferred_model: str | None = None) -> list[str]:
         models: list[str] = []
@@ -82,6 +93,13 @@ class OllamaProvider:
         base = self.settings.ollama_base_url.rstrip("/")
         model_errors: list[str] = []
         models = self._models(preferred_model=preferred_model)
+        available_models = self._available_models()
+        if available_models:
+            configured_available = [model for model in models if model in available_models]
+            if configured_available:
+                models = configured_available
+            else:
+                models = [available_models[0], *models]
 
         for model in models:
             request_started = time.perf_counter()

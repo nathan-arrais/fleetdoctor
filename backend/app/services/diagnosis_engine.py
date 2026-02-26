@@ -49,6 +49,7 @@ def _metadata_payload(
     latency_ms: int | None = None,
     used_tools: list[str] | None = None,
     fallback_reason: str | None = None,
+    validation_warnings: list[str] | None = None,
 ) -> dict[str, Any]:
     output = dict(diagnosis)
     output["source"] = source
@@ -56,6 +57,7 @@ def _metadata_payload(
     output["latency_ms"] = latency_ms
     output["used_tools"] = used_tools or []
     output["fallback_reason"] = fallback_reason
+    output["validation_warnings"] = validation_warnings or []
     return output
 
 
@@ -123,8 +125,6 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
         parsed, errors = parse_and_validate_diagnosis(state.get("llm_text", ""), fallback_severity=fallback_severity)
         if parsed is None:
             return {**state, "validation_errors": errors, "fallback_reason": "; ".join(errors)}
-        if errors:
-            return {**state, "validation_errors": errors, "fallback_reason": "; ".join(errors)}
         return {
             **state,
             "diagnosis": _metadata_payload(
@@ -133,6 +133,7 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
                 model=state.get("llm_model"),
                 latency_ms=state.get("llm_latency_ms"),
                 used_tools=state.get("used_tools"),
+                validation_warnings=errors,
             ),
             "source": "llm",
         }
@@ -244,8 +245,6 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
         parsed, errors = parse_and_validate_diagnosis(state.get("llm_text", ""), fallback_severity=fallback_severity)
         if parsed is None:
             return {**state, "validation_errors": errors, "fallback_reason": "; ".join(errors)}
-        if errors:
-            return {**state, "validation_errors": errors, "fallback_reason": "; ".join(errors)}
         return {
             **state,
             "diagnosis": _metadata_payload(
@@ -254,6 +253,7 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
                 model=state.get("llm_model"),
                 latency_ms=state.get("llm_latency_ms"),
                 used_tools=state.get("used_tools"),
+                validation_warnings=errors,
             ),
             "source": "llm",
         }

@@ -100,6 +100,7 @@ class DiagnosisResponse(BaseModel):
     latency_ms: Optional[int] = None
     used_tools: List[str] = Field(default_factory=list)
     fallback_reason: Optional[str] = None
+    validation_warnings: List[str] = Field(default_factory=list)
 
 
 class ReportOut(BaseModel):

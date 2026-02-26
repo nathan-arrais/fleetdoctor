@@ -45,6 +45,16 @@ Stack:
 
 Escolha: **Ollama** com modelo primario + fallback de modelo.
 
+Modelos recomendados para esta versao:
+- primario: `qwen2.5:7b`
+- fallback: `llama3.1:8b`
+
+Comandos sugeridos:
+```bash
+ollama pull qwen2.5:7b
+ollama pull llama3.1:8b
+```
+
 Motivos:
 - custo zero por chamada
 - privacidade local
@@ -103,8 +113,8 @@ Implementacao backend:
 Configuracoes por ambiente:
 - `LLM_PROVIDER` (default `ollama`)
 - `OLLAMA_BASE_URL` (default `http://localhost:11434`)
-- `OLLAMA_MODEL_PRIMARY`
-- `OLLAMA_MODEL_FALLBACK`
+- `OLLAMA_MODEL_PRIMARY` (default `qwen2.5:7b`)
+- `OLLAMA_MODEL_FALLBACK` (default `llama3.1:8b`)
 - `LLM_TEMPERATURE` (default `0.2`)
 - `LLM_TOP_P` (default `0.9`)
 - `LLM_MAX_TOKENS` (default `500`)
@@ -138,10 +148,11 @@ Response (compativel + metadados opcionais):
   "recommended_actions": ["..."],
   "evidence": ["..."],
   "source": "llm",
-  "model": "qwen2.5:7b-instruct",
+  "model": "qwen2.5:7b",
   "latency_ms": 842,
   "used_tools": ["get_event_context", "get_similar_events", "get_vehicle_recent_history"],
-  "fallback_reason": null
+  "fallback_reason": null,
+  "validation_warnings": []
 }
 ```
 
@@ -215,8 +226,14 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
+copy .env.example .env
 python -m app.seed
 uvicorn app.main:app --reload
+```
+
+Validacao rapida da camada LLM:
+```bash
+curl "http://localhost:8000/api/llm/health"
 ```
 
 ### Frontend
