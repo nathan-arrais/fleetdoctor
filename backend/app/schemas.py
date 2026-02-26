@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class VehicleOut(BaseModel):
@@ -85,6 +85,8 @@ class TriageResponse(BaseModel):
 class DiagnosisRequest(BaseModel):
     event_id: Optional[int] = None
     trip_id: Optional[int] = None
+    debug: bool = False
+    force_deterministic: bool = False
 
 
 class DiagnosisResponse(BaseModel):
@@ -93,6 +95,11 @@ class DiagnosisResponse(BaseModel):
     probable_causes: List[str]
     recommended_actions: List[str]
     evidence: List[str]
+    source: Optional[str] = None
+    model: Optional[str] = None
+    latency_ms: Optional[int] = None
+    used_tools: List[str] = Field(default_factory=list)
+    fallback_reason: Optional[str] = None
 
 
 class ReportOut(BaseModel):

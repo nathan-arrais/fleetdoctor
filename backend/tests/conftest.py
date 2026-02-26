@@ -32,6 +32,7 @@ def client() -> TestClient:
 
     os.environ["FLEETDOCTOR_DB_PATH"] = str(db_path)
     os.environ["REPORTS_DIR"] = str(reports_dir)
+    os.environ["LLM_FORCE_DETERMINISTIC"] = "1"
 
     _reload_app_modules()
     from app.seed import seed
@@ -43,5 +44,6 @@ def client() -> TestClient:
 
     os.environ.pop("FLEETDOCTOR_DB_PATH", None)
     os.environ.pop("REPORTS_DIR", None)
+    os.environ.pop("LLM_FORCE_DETERMINISTIC", None)
     shutil.rmtree(runtime_dir, ignore_errors=True)
     _reload_app_modules()

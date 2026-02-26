@@ -5,7 +5,7 @@ def test_diagnosis_por_evento_retorna_payload_esperado(client):
     assert triage_data["total"] > 0
 
     event_id = triage_data["items"][0]["id"]
-    diagnosis_response = client.post("/api/diagnosis", json={"event_id": event_id})
+    diagnosis_response = client.post("/api/diagnosis", json={"event_id": event_id, "force_deterministic": True})
 
     assert diagnosis_response.status_code == 200
     payload = diagnosis_response.json()
@@ -14,3 +14,5 @@ def test_diagnosis_por_evento_retorna_payload_esperado(client):
     assert isinstance(payload["probable_causes"], list)
     assert isinstance(payload["recommended_actions"], list)
     assert isinstance(payload["evidence"], list)
+    assert payload["source"] == "deterministic_fallback"
+    assert isinstance(payload["used_tools"], list)

@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .db import Base, engine
-from .routers import health, dashboard, triage, vehicles, trips, diagnosis, reports, upload
+from .routers import health, dashboard, triage, vehicles, trips, diagnosis, reports, upload, llm
 
 app = FastAPI(title="FleetDoctor API", version="0.1.0")
 
@@ -27,3 +27,4 @@ app.include_router(trips.router, prefix="/api")
 app.include_router(diagnosis.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
+app.include_router(llm.router, prefix="/api")
