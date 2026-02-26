@@ -1,29 +1,215 @@
 # FleetDoctor
 
-Assistente de diagnostico operacional para frotas, com foco em triagem de eventos, investigacao rapida e geracao de relatorios executivos.
+Assistente de diagnostico operacional para frotas com **IA generativa local** integrada ao fluxo de triagem.
 
-Stack atual:
-- Frontend: React + Vite + TypeScript + Tailwind + Recharts
-- Backend: FastAPI + SQLAlchemy
-- Banco: SQLite local
-- Diagnostico: motor deterministico (mock IA)
+## 1) Problema e solucao
 
-## Como baixar / requisitos
-Requisitos:
-- Python 3.11+ (testado com Python 3.13)
-- Node.js 20+ (LTS recomendado)
-- npm 10+
-- ngrok (opcional, para expor a API local)
+Em operacoes de frota, o gargalo nao e detectar evento, e sim transformar sinal em decisao acionavel.
 
-Como clonar:
-```bash
-git clone https://github.com/nathan-arrais/fleetdoctor
-cd fleetdoctor
+Problemas comuns:
+- alertas demais e pouca priorizacao
+- investigacao lenta entre telas/sistemas
+- diagnostico inconsistente entre analistas
+
+Solucao no FleetDoctor:
+- triagem operacional com filtros e drill-down
+- diagnostico por evento/viagem usando **LLM local + fallback deterministico**
+- geracao de relatorio executivo em HTML
+- importacao de eventos por CSV
+
+## 2) Arquitetura de LLM
+
+Fluxo de diagnostico (`POST /api/diagnosis`):
+
+```mermaid
+flowchart TD
+    A[Usuario seleciona evento/viagem] --> B[FastAPI /api/diagnosis]
+    B --> C[LangGraph]
+    C --> C1[prepare_context]
+    C --> C2[execute_tools]
+    C --> C3[run_llm Ollama]
+    C --> C4[validate_output JSON/schema]
+    C4 -->|ok| D[Resposta source=llm]
+    C4 -->|erro/timeout/json invalido| E[fallback deterministico]
+    E --> F[Resposta source=deterministic_fallback]
 ```
 
-Execucao rapida:
+Stack:
+- Frontend: React + Vite + TypeScript + Tailwind + Recharts
+- Backend: FastAPI + SQLAlchemy
+- LLM orchestration: LangGraph
+- Modelo local: Ollama
+- Persistencia: SQLite local
 
-Backend:
+## 3) Modelo local escolhido e trade-offs
+
+Escolha: **Ollama** com modelo primario + fallback de modelo.
+
+Motivos:
+- custo zero por chamada
+- privacidade local
+- controle de latencia e disponibilidade
+
+Trade-offs:
+- qualidade textual pode variar mais que APIs pagas
+- modelos menores tendem a ser mais genericos
+- setup local exige ambiente preparado
+
+Se trocar para API paga:
+- ganho esperado: qualidade de raciocinio e tool calling mais robusto
+- perda esperada: custo por uso e menor controle de dados locais
+
+## 4) Framework escolhido
+
+Escolha: **LangGraph simples** (single graph) em vez de multiagente.
+
+Justificativa:
+- controla explicitamente o fluxo de contexto -> tools -> modelo -> validacao -> fallback
+- menor complexidade operacional para prazo curto
+- suficiente para demonstrar decisao de engenharia de framework
+
+Implementacao do grafo:
+- [backend/app/agents/langgraph_diagnosis_graph.py](backend/app/agents/langgraph_diagnosis_graph.py)
+
+## 5) Prompts e estrategia de prompting
+
+Arquivos:
+- [prompts/system_prompt.txt](prompts/system_prompt.txt)
+- [prompts/diagnosis_event_template.txt](prompts/diagnosis_event_template.txt)
+- [prompts/diagnosis_trip_template.txt](prompts/diagnosis_trip_template.txt)
+
+Estrategia aplicada:
+- system prompt com regras de comportamento e formato JSON estrito
+- templates separados por modo (evento vs viagem)
+- delimitacao clara entre instrucoes e dados operacionais
+- mitigacao de prompt injection: campos textuais tratados como dados, nunca como instrucao
+
+## 6) Tools disponibilizadas ao LLM
+
+Especificacao completa:
+- [tools/diagnosis_tools_spec.md](tools/diagnosis_tools_spec.md)
+
+Tools:
+- `get_event_context(event_id)`
+- `get_trip_context(trip_id)`
+- `get_similar_events(event_type, region, limit)`
+- `get_vehicle_recent_history(vehicle_id, days)`
+
+Implementacao backend:
+- [backend/app/services/diagnosis_tools.py](backend/app/services/diagnosis_tools.py)
+
+## 7) Parametros do modelo
+
+Configuracoes por ambiente:
+- `LLM_PROVIDER` (default `ollama`)
+- `OLLAMA_BASE_URL` (default `http://localhost:11434`)
+- `OLLAMA_MODEL_PRIMARY`
+- `OLLAMA_MODEL_FALLBACK`
+- `LLM_TEMPERATURE` (default `0.2`)
+- `LLM_TOP_P` (default `0.9`)
+- `LLM_MAX_TOKENS` (default `500`)
+- `LLM_TIMEOUT_MS` (default `6000`)
+- `LLM_FORCE_DETERMINISTIC` (forca fallback para testes/demo)
+
+Racional:
+- temperatura baixa para consistencia
+- top-p moderado para manter variacao controlada
+- timeout para nao degradar UX
+
+## 8) Contrato de API de diagnostico
+
+Endpoint: `POST /api/diagnosis`
+
+Request:
+```json
+{
+  "event_id": 12,
+  "debug": false,
+  "force_deterministic": false
+}
+```
+
+Response (compativel + metadados opcionais):
+```json
+{
+  "severity": "high",
+  "summary": "...",
+  "probable_causes": ["..."],
+  "recommended_actions": ["..."],
+  "evidence": ["..."],
+  "source": "llm",
+  "model": "qwen2.5:7b-instruct",
+  "latency_ms": 842,
+  "used_tools": ["get_event_context", "get_similar_events", "get_vehicle_recent_history"],
+  "fallback_reason": null
+}
+```
+
+Health da camada LLM:
+- `GET /api/llm/health`
+
+## 9) O que funcionou
+
+- arquitetura hibrida evitou quebra funcional quando modelo local falha
+- JSON schema + validacao reduziu respostas malformadas
+- tools de contexto melhoraram utilidade das recomendacoes
+- contrato da API foi mantido para o frontend existente
+
+## 10) O que nao funcionou / limitacoes
+
+- modelo local pequeno pode produzir recomendacoes genericas
+- sem RAG nesta versao (usa somente contexto transacional atual)
+- sem score probabilistico calibrado
+- `upload/reset` continua destrutivo para contexto produtivo
+
+## 11) Estrutura do repositorio
+
+```text
+fleetdoctor/
+  prompts/
+    system_prompt.txt
+    diagnosis_event_template.txt
+    diagnosis_trip_template.txt
+  tools/
+    diagnosis_tools_spec.md
+  agents/
+    README.md
+  backend/
+    app/
+      agents/
+        langgraph_diagnosis_graph.py
+      routers/
+        diagnosis.py
+        llm.py
+      services/
+        diagnosis_engine.py
+        diagnosis_tools.py
+        llm_provider.py
+        output_validation.py
+        diagnostics.py
+    tests/
+      routers/
+        test_health.py
+        test_diagnosis.py
+        test_reports.py
+        test_upload.py
+        test_llm.py
+  frontend/
+    src/pages/
+      Triage.tsx
+  docs/
+    pitch_3min.md
+```
+
+## 12) Como executar
+
+### Requisitos
+- Python 3.11+
+- Node.js 20+
+- npm 10+
+- Ollama instalado localmente
+
+### Backend
 ```bash
 cd backend
 python -m venv .venv
@@ -33,7 +219,7 @@ python -m app.seed
 uvicorn app.main:app --reload
 ```
 
-Frontend:
+### Frontend
 ```bash
 cd frontend
 copy .env.example .env
@@ -41,338 +227,22 @@ npm install
 npm run dev
 ```
 
-Testes automatizados (backend):
+### Testes backend
 ```bash
 cd backend
 pip install -r requirements-dev.txt
-pytest -q
+pytest -q tests -p no:cacheprovider
 ```
 
-Variaveis de ambiente do backend:
-- `FLEETDOCTOR_DB_PATH`: caminho do SQLite local quando `DATABASE_URL` nao for informado.
-- `DATABASE_URL`: string de conexao completa para banco (sobrescreve `FLEETDOCTOR_DB_PATH`).
-- `REPORTS_DIR`: pasta de saida dos HTMLs de relatorio.
+## 13) CI
 
-CI (GitHub Actions):
-- workflow em `.github/workflows/ci.yml`
-- executa `pytest` no backend e `npm run build` no frontend em push/PR
+Workflow em:
+- `.github/workflows/ci.yml`
 
-## Links de entrega
-- Frontend (Vercel): `https://fleetdoctor.vercel.app/`
-- Backend (Render): `https://fleetdoctor.onrender.com/`
-- Repositorio GitHub: `https://github.com/nathan-arrais/fleetdoctor`
+Executa:
+- `pytest` backend
+- `npm run build` frontend
 
-Checklist rapido antes da aula:
-- backend responde em `/api/health`
-- frontend navega entre `Dashboard`, `Triagem`, `Veiculo`, `Viagem`, `Relatorios`, `Upload`
-- upload CSV funciona com preview/import/reset
-- README atualizado com evidencias de uso do agente e limitacoes reais
+## 14) Roteiro de apresentacao
 
-## 1) Problema e solucao proposta
-Em operacoes de frota, o problema nao e apenas detectar eventos, mas transformar eventos em decisao.
-
-Problemas tipicos:
-- muitos alertas sem priorizacao clara
-- dificuldade para correlacionar evento, veiculo e viagem
-- investigacao lenta (dados espalhados em varias telas/sistemas)
-- relatorios gerenciais dependentes de extracao manual
-
-Solucao proposta pelo FleetDoctor:
-- centralizar eventos operacionais em uma triagem unica
-- aplicar filtros por periodo, tipo, severidade, regiao e status
-- oferecer diagnostico instantaneo por evento/viagem via regras deterministicas
-- permitir drill-down para paginas de veiculo e viagem
-- gerar relatorio executivo HTML com resumo de KPIs e recomendacoes
-- importar eventos via CSV para alimentar a base rapidamente em demos/pilotos
-
-## 2) Escolhas de design (justificativa da stack)
-- `FastAPI`: entrega API tipada rapidamente, com validacao por schema e baixo atrito para evolucao.
-- `SQLAlchemy`: mapeamento ORM simples para dominio relacional (veiculos, viagens, eventos, relatorios).
-- `SQLite`: escolha pragmatica para desenvolvimento local e demo sem dependencia externa.
-- `React + Vite + TypeScript`: produtividade alta no frontend, build rapido e tipagem para reduzir regressao.
-- `Tailwind`: aceleracao de UI sem overhead de design system complexo no primeiro ciclo.
-- `Recharts`: graficos de tendencia com pouca configuracao, suficiente para dashboard operacional.
-
-Trade-off assumido:
-- arquitetura otimizada para velocidade de entrega e validacao funcional, nao para escala multi-tenant.
-
-## 3) Arquitetura (diagrama + explicacao textual)
-```mermaid
-flowchart TD
-    UI[React App\nDashboard/Triagem/Relatorios/Upload] --> API[FastAPI Routers]
-    API --> SVC[Services\nDiagnostics + Reports]
-    API --> ORM[SQLAlchemy ORM]
-    ORM --> DB[(SQLite)]
-    API --> FS[reports_store/*.html]
-```
-
-Explicacao:
-- O frontend consome a API via `fetch`, usando `VITE_API_BASE_URL`.
-- A camada `routers` recebe requests, valida parametros e orquestra consultas.
-- A logica de negocio esta em `services`:
-  - `diagnostics.py`: regras deterministicas de diagnostico.
-  - `reports.py`: agregacoes e montagem de HTML executivo.
-- Persistencia em SQLite via modelos ORM (`Vehicle`, `Trip`, `Event`, `Report`).
-- Relatorios gerados sao persistidos no banco e tambem escritos em disco (`backend/app/reports_store`).
-
-## 4) Fluxo da aplicacao (passo a passo do usuario)
-1. Usuario abre `Dashboard` e ajusta filtros de periodo, regiao e status.
-2. Usuario clica em um card de KPI (ex.: atrasos), indo para `Triagem` com query params pre-preenchidos.
-3. Em `Triagem`, aplica filtros finos e busca textual (placa, motorista, origem/destino, descricao).
-4. Usuario seleciona um evento na tabela.
-5. A UI abre drawer lateral e chama `POST /api/diagnosis` com `event_id`.
-6. Drawer exibe resumo, causas provaveis, acoes recomendadas e evidencias.
-7. Usuario pode abrir detalhe do `Veiculo` ou da `Viagem` para contexto historico.
-8. Em `Relatorios`, usuario define filtros e gera relatorio executivo.
-9. Relatorio fica listado com `Preview` e `Download`.
-10. Em `Upload`, usuario envia CSV, valida colunas, importa e opcionalmente executa reset para voltar ao dataset demo.
-
-## 5) Upload de dados (CSV)
-Endpoints:
-- `POST /api/upload/preview`
-- `POST /api/upload/import`
-- `POST /api/upload/reset`
-
-Colunas obrigatorias do CSV:
-- `vehicle_id`
-- `plate`
-- `trip_id`
-- `event_type`
-- `severity`
-- `timestamp`
-- `description`
-
-Coluna opcional usada no import:
-- `value_num` (convertida para `float` quando possivel)
-
-Comportamento do import:
-- valida colunas obrigatorias
-- aceita CSV UTF-8 com ou sem BOM (`utf-8-sig`)
-- normaliza `event_type` e `severity` para lowercase antes da validacao
-- normaliza `event_type` invalido para `route_deviation`
-- normaliza `severity` invalida para `low`
-- tenta localizar veiculo por `code`, depois por `id` (se numerico), depois por `plate`
-- se nao encontrar veiculo, cria novo registro "importado" com `code` e `plate` unicos
-- `trip_id` vazio: nao cria trip; evento fica com `trip_id = null`
-- `trip_id` numerico:
-  - tenta `Trip.id`
-  - se nao existir (ou pertencer a outro veiculo), reaproveita/cria trip sintetica por chave `origin=IMPORT-{trip_id}` + `vehicle_id`
-- `trip_id` textual (nao vazio):
-  - reaproveita/cria trip sintetica por chave `origin=IMPORT-{trip_id}` + `vehicle_id`
-- parse de timestamp usa ISO; se falhar, usa `datetime.utcnow()`
-- resposta retorna total importado: `{"imported": N}`
-- endpoint `upload/reset` retorna erro 500 se nao conseguir remover o banco
-
-Arquivo de exemplo:
-- `frontend/public/sample_upload.csv`
-
-## 6) Mock IA (como funciona o diagnostico deterministico)
-O diagnostico atual nao usa LLM. Ele aplica regras fixas com base no `event.type`.
-
-Fluxo:
-- `POST /api/diagnosis` recebe `event_id` ou `trip_id`
-- se `event_id`: executa `diagnose_event(event)`
-- se `trip_id`: executa `diagnose_trip(session, trip)`
-
-Regras por tipo de evento:
-- `delay`: causas de rota/paradas, recomendacoes de ajuste operacional
-- `temp_out_of_range`: foco em refrigeracao, vedacao e calibracao
-- `excessive_stops`: foco em planejamento e disciplina operacional
-- `excessive_idle`: foco em docas e alertas de tempo parado
-- outros tipos: fallback generico
-
-Determinismo:
-- mesmo input gera mesmo output estrutural
-- severidade final no diagnostico de viagem usa ranking fixo (`low < medium < high < critical`)
-
-## 7) Como a IA seria integrada no futuro
-Evolucao recomendada em camadas:
-1. `AI Adapter` dedicado (`services/ai_provider.py`) para desacoplar provedor/modelo da regra de negocio.
-2. `Hybrid mode`: diagnostico deterministico como fallback + LLM para enriquecimento textual/contextual.
-3. `RAG`: recuperar historico de falhas, manutencoes e incidentes similares antes da geracao de resposta.
-4. `Observabilidade`: logging de prompts/respostas, versao de modelo, latencia, custo e taxa de fallback.
-5. `Safety`: mascaramento de dados sensiveis, guardrails e validacao semantica de resposta.
-6. `Aprendizado`: loop de feedback humano (aceitou/rejeitou recomendacao) para calibracao continua.
-
-## 8) Uso do agente de codificacao (o que funcionou e estrategia incremental)
-Estrategia incremental que funcionou melhor:
-1. modelar dominio minimo (`Vehicle`, `Trip`, `Event`, `Report`) e seed deterministico
-2. fechar contratos de API essenciais (`dashboard`, `triage`, `diagnosis`)
-3. construir frontend por fluxo de usuario (Dashboard -> Triagem -> Drill-down)
-4. adicionar capacidades secundarias (`reports`, `upload`) sem quebrar fluxo principal
-5. refinar UX com query params persistidos, filtros e navegacao entre telas
-
-Padrao de colaboracao com agente que trouxe resultado:
-- tarefas pequenas e verificaveis por endpoint/tela
-- validacao continua com chamadas reais de API
-- foco em primeiro entregar comportamento, depois ajustar forma
-
-Prompts/solicitacoes que funcionaram melhor (exemplos reais de iteracao):
-- "Crie endpoint de triagem com filtros de periodo, severidade, tipo e paginacao."
-- "Implemente pagina de Triagem com query params persistidos e drawer de diagnostico."
-- "Adicione upload CSV com preview de colunas obrigatorias e import."
-- "Gerar relatorio executivo HTML com KPIs, top listas e download."
-- "Corrija integridade do import sem mudar contratos da API (trip por veiculo, fallback estavel, etc.)."
-
-Pontos em que foi necessario ajuste manual apos geracao:
-- hardening de import (unicidade de code/plate, caso BOM, enums case-insensitive, consistencia trip-veiculo)
-- correcoes de seguranca no HTML de relatorios (escape de campos interpolados)
-- alinhamento de filtros no relatorio para evitar KPI inconsistente sob busca textual
-
-### Comprovacao visual do uso do Codex
-<img src="screenshots/Captura%20de%20tela%202026-02-20%20180316.png" alt="Uso do Codex - captura 1" width="900" />
-<img src="screenshots/Captura%20de%20tela%202026-02-20%20181324.png" alt="Uso do Codex - captura 2" width="900" />
-
-## 9) O que nao funcionou / limitacoes (analise critica real)
-Limitacoes tecnicas observadas no estado atual:
-- upload aceita apenas CSV (nao ha suporte nativo a XLSX nesta versao).
-- upload nao e idempotente: reimportar o mesmo CSV duplica eventos.
-- timestamp invalido no upload cai para `utcnow()` com warning, mas ainda sem rejeicao por linha.
-- `upload/reset` e destrutivo e sem transacao (remove DB e recria seed), adequado para demo, inadequado para producao.
-- mock de diagnostico nao possui score de confianca, explicabilidade probabilistica ou calibracao por historico.
-- ausencia de autenticacao/autorizacao e trilha de auditoria.
-- ausencia de testes automatizados no repositorio.
-- SQLite local limita concorrencia e estrategia de deploy para ambiente multiusuario.
-
-## 10) Endpoints principais com exemplos
-Base local: `http://localhost:8000`
-
-Saude:
-```bash
-curl "http://localhost:8000/api/health"
-```
-
-Dashboard:
-```bash
-curl "http://localhost:8000/api/dashboard/metrics?start=2026-02-01&end=2026-02-19&region=Sudeste&status=active"
-```
-
-Triagem paginada:
-```bash
-curl "http://localhost:8000/api/triage/events?start=2026-02-01&end=2026-02-19&type=delay&severity=high&page=1&page_size=10"
-```
-
-Diagnostico por evento:
-```bash
-curl -X POST "http://localhost:8000/api/diagnosis" \
-  -H "Content-Type: application/json" \
-  -d "{\"event_id\": 12}"
-```
-
-Diagnostico por viagem:
-```bash
-curl -X POST "http://localhost:8000/api/diagnosis" \
-  -H "Content-Type: application/json" \
-  -d "{\"trip_id\": 8}"
-```
-
-Detalhe de veiculo e eventos:
-```bash
-curl "http://localhost:8000/api/vehicles/1"
-curl "http://localhost:8000/api/vehicles/1/events?start=2026-01-20&end=2026-02-19"
-```
-
-Detalhe de viagem e eventos:
-```bash
-curl "http://localhost:8000/api/trips/2"
-curl "http://localhost:8000/api/trips/2/events"
-```
-
-Gerar relatorio:
-```bash
-curl -X POST "http://localhost:8000/api/reports/generate" \
-  -H "Content-Type: application/json" \
-  -d "{\"type\":\"executive\",\"start\":\"2026-02-01\",\"end\":\"2026-02-19\",\"region\":\"Sul\",\"status\":null,\"event_type\":\"delay\",\"severity\":\"high\",\"q\":null}"
-```
-
-Listar relatorios:
-```bash
-curl "http://localhost:8000/api/reports"
-```
-
-Preview/Download:
-```bash
-curl "http://localhost:8000/api/reports/1/preview"
-curl "http://localhost:8000/api/reports/1/download"
-```
-
-Preview de upload CSV:
-```bash
-curl -X POST "http://localhost:8000/api/upload/preview" \
-  -F "file=@frontend/public/sample_upload.csv"
-```
-
-Import de upload CSV:
-```bash
-curl -X POST "http://localhost:8000/api/upload/import" \
-  -F "file=@frontend/public/sample_upload.csv"
-```
-
-Reset para dataset demo:
-```bash
-curl -X POST "http://localhost:8000/api/upload/reset"
-```
-
-## 11) Estrutura do repositorio
-```text
-fleetdoctor/
-  backend/
-    app/
-      main.py
-      db.py
-      deps.py
-      models.py
-      schemas.py
-      seed.py
-      routers/
-        health.py
-        dashboard.py
-        triage.py
-        vehicles.py
-        trips.py
-        diagnosis.py
-        reports.py
-        upload.py
-      services/
-        diagnostics.py
-        reports.py
-    tests/
-      routers/
-        test_health.py
-        test_diagnosis.py
-        test_upload.py
-        test_reports.py
-      reports_store/
-      fleetdoctor.db
-    requirements.txt
-    requirements-dev.txt
-  frontend/
-    .env.example
-    public/
-      sample_upload.csv
-    src/
-      api/client.ts
-      components/Layout.tsx
-      pages/
-        Dashboard.tsx
-        Triage.tsx
-        Vehicle.tsx
-        Trip.tsx
-        Reports.tsx
-        Upload.tsx
-      App.tsx
-      main.tsx
-    package.json
-  .github/
-    workflows/
-      ci.yml
-  README.md
-```
-
-## 12) Consideracoes finais
-O FleetDoctor cumpre bem o objetivo de prototipo funcional: entrega fluxo fim-a-fim para monitorar eventos, priorizar ocorrencias, diagnosticar rapidamente e gerar relatorios.
-
-Para avancar para um contexto produtivo, os proximos passos de maior impacto sao:
-- ampliar cobertura dos testes automatizados e controle de qualidade de dado no upload
-- evoluir o mock para arquitetura hibrida com IA real e fallback deterministico
-- migrar persistencia para banco transacional gerenciado quando houver requisito de escala
+- [docs/pitch_3min.md](docs/pitch_3min.md)

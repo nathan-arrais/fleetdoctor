@@ -1,0 +1,18 @@
+Analise o contexto abaixo e gere um diagnostico consolidado da viagem.
+
+Contexto principal da viagem:
+{trip_context_json}
+
+Eventos similares recentes:
+{similar_events_json}
+
+Historico recente do veiculo:
+{vehicle_history_json}
+
+Instrucoes:
+- Leve em conta o conjunto de eventos da viagem.
+- Priorize severidade e impacto operacional.
+- Recomende acoes para reduzir recorrencia.
+- Cite evidencias diretamente observaveis no contexto.
+
+Retorne somente JSON no formato exigido.
