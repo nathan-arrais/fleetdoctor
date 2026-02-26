@@ -19,10 +19,11 @@
   - Regras claras de comportamento, anti-injection e saída JSON estrita.
 - Parâmetros:
   - Temperatura baixa (`0.2`), `top_p` moderado (`0.9`), timeouts explícitos.
+  - Diagnóstico com perfil dedicado (`OLLAMA_DIAG_MODEL_PRIMARY=qwen3:4b`, `LLM_DIAG_TIMEOUT_MS=60000`, `disable_thinking=true`, `response_format_json=true`).
   - Chat com timeout próprio (`LLM_CHAT_TIMEOUT_MS=120000`), `disable_thinking=true`, retry de JSON e retry de timeout transitório.
 - Tools:
   - Diagnóstico: `get_event_context`, `get_trip_context`, `get_similar_events`, `get_vehicle_recent_history`.
-  - Chat: `get_dashboard_snapshot`, `search_events`, `get_vehicle_overview`, `get_trip_overview`, `get_top_risks`.
+  - Chat: `get_dashboard_snapshot`, `search_events`, `get_driver_last_trip`, `get_vehicle_overview`, `get_trip_overview`, `get_top_risks`.
   - Motivo: ancorar resposta em dados transacionais e reduzir alucinação.
 - Structured output e fallback:
   - Saída validada por schema/parse.
@@ -35,7 +36,7 @@
 - Não funcionou:
   - Timeout/cold start e respostas genéricas em modelo local menor.
 - Mitigações:
-  - Warmup no startup, timeout maior no chat, retry de timeout, validação de JSON.
+  - Warmup no startup, timeout dedicado por fluxo, retry de timeout, validação de JSON.
 
 ## 2) Frases curtas para justificar trade-offs
 - "Preferi previsibilidade de fluxo com LangGraph em vez de complexidade de multiagente."
@@ -63,9 +64,10 @@
 
 ## 4) Checklist de pré-apresentação (5 minutos antes)
 - Backend e frontend no ar.
-- `GET /api/llm/health` respondendo com `provider=ollama` e modelos carregados.
+- `GET /api/llm/health` respondendo com `provider=ollama`, blocos `chat` e `diagnosis`, e modelos carregados.
+- `force_deterministic=false` no health durante a demo de IA.
 - Um exemplo de diagnóstico funcionando (`POST /api/diagnosis`).
-- Um exemplo de chat funcionando (`POST /api/chat/ask`).
+- Um exemplo de chat funcionando (`POST /api/chat/ask`) e uma pergunta por motorista (`Qual a última viagem da Renata Lima?`).
 - Plano B pronto: se LLM falhar, demonstrar fallback e explicar por que ele existe.
 
 ## 5) Comandos de conferência rápida

@@ -24,7 +24,7 @@ Fluxo de diagnóstico (`POST /api/diagnosis`):
 
 ```mermaid
 flowchart TD
-    A[Usuario seleciona evento/viagem] --> B[FastAPI /api/diagnosis]
+    A[Usuário seleciona evento/viagem] --> B[FastAPI /api/diagnosis]
     B --> C[LangGraph]
     C --> C1[prepare_context]
     C --> C2[execute_tools]
@@ -40,18 +40,20 @@ Stack:
 - Backend: FastAPI + SQLAlchemy
 - LLM orchestration: LangGraph
 - Modelo local: Ollama
-- Persistencia: SQLite local
+- Persistência: SQLite local
 
 ## 3) Modelo local escolhido e trade-offs
 
-Escolha: **Ollama** com modelo primário + fallback de modelo.
+Escolha: **Ollama** com perfis dedicados por fluxo (diagnóstico e chat).
 
 Modelos recomendados para esta versão:
-- primário: `qwen2.5:7b`
-- fallback: `llama3.1:8b`
+- diagnóstico (drawer): `qwen3:4b` (perfil leve e estável)
+- chat: `qwen3:4b` com fallback `qwen2.5:7b`
+- fallback global opcional: `llama3.1:8b`
 
 Comandos sugeridos:
 ```bash
+ollama pull qwen3:4b
 ollama pull qwen2.5:7b
 ollama pull llama3.1:8b
 ```
@@ -63,7 +65,7 @@ Motivos:
 
 Trade-offs:
 - qualidade textual pode variar mais que APIs pagas
-- modelos menores tendem a ser mais genericos
+- modelos menores tendem a ser mais genéricos
 - setup local exige ambiente preparado
 
 Se trocar para API paga:
@@ -91,7 +93,7 @@ Arquivos:
 - [prompts/chat_system_prompt.txt](prompts/chat_system_prompt.txt)
 - [prompts/chat_response_template.txt](prompts/chat_response_template.txt)
 
-Estrategia aplicada:
+Estratégia aplicada:
 - system prompt com regras de comportamento e formato JSON estrito
 - templates separados por modo (evento vs viagem)
 - delimitação clara entre instruções e dados operacionais
@@ -103,16 +105,24 @@ Especificação completa:
 - [tools/diagnosis_tools_spec.md](tools/diagnosis_tools_spec.md)
 - [tools/chat_tools_spec.md](tools/chat_tools_spec.md)
 
-Tools:
+Tools de diagnóstico:
 - `get_event_context(event_id)`
 - `get_trip_context(trip_id)`
 - `get_similar_events(event_type, region, limit)`
 - `get_vehicle_recent_history(vehicle_id, days)`
 
+Tools de chat:
+- `get_dashboard_snapshot(start?, end?, region?, status?)`
+- `search_events(q?, event_type?, severity?, region?, status?, limit)`
+- `get_driver_last_trip(driver_name)`
+- `get_vehicle_overview(vehicle_id)`
+- `get_trip_overview(trip_id)`
+- `get_top_risks(window_days)`
+
 Implementação backend:
 - [backend/app/services/diagnosis_tools.py](backend/app/services/diagnosis_tools.py)
 
-## 7) Parametros do modelo
+## 7) Parâmetros do modelo
 
 Configurações por ambiente:
 - `LLM_PROVIDER` (default `ollama`)
@@ -121,6 +131,8 @@ Configurações por ambiente:
 - `OLLAMA_MODEL_FALLBACK` (default `llama3.1:8b`)
 - `OLLAMA_CHAT_MODEL_PRIMARY` (default `qwen3:4b`)
 - `OLLAMA_CHAT_MODEL_FALLBACK` (default `qwen2.5:7b`)
+- `OLLAMA_DIAG_MODEL_PRIMARY` (default `qwen3:4b`)
+- `OLLAMA_DIAG_MODEL_FALLBACK` (default `qwen3:4b`)
 - `LLM_TEMPERATURE` (default `0.2`)
 - `LLM_TOP_P` (default `0.9`)
 - `LLM_MAX_TOKENS` (default `500`)
@@ -128,12 +140,26 @@ Configurações por ambiente:
 - `LLM_CONNECT_TIMEOUT_MS` (default `2000`)
 - `LLM_READ_TIMEOUT_MS` (default `30000`)
 - `LLM_CHAT_TIMEOUT_MS` (default `120000`)
+- `LLM_CHAT_CONNECT_TIMEOUT_MS` (default `2000`)
+- `LLM_CHAT_READ_TIMEOUT_MS` (default `120000`)
 - `LLM_CHAT_MAX_TOKENS` (default `220`)
+- `LLM_CHAT_TEMPERATURE` (default `0.2`)
+- `LLM_CHAT_TOP_P` (default `0.9`)
 - `LLM_CHAT_DISABLE_THINKING` (default `true`)
+- `OLLAMA_CHAT_KEEP_ALIVE` (default herda `OLLAMA_KEEP_ALIVE`)
+- `LLM_DIAG_TIMEOUT_MS` (default `60000`)
+- `LLM_DIAG_CONNECT_TIMEOUT_MS` (default `2000`)
+- `LLM_DIAG_READ_TIMEOUT_MS` (default `60000`)
+- `LLM_DIAG_MAX_TOKENS` (default `320`)
+- `LLM_DIAG_DISABLE_THINKING` (default `true`)
+- `LLM_DIAG_TEMPERATURE` (default `0.2`)
+- `LLM_DIAG_TOP_P` (default `0.9`)
 - `OLLAMA_KEEP_ALIVE` (default `10m`)
+- `OLLAMA_DIAG_KEEP_ALIVE` (default herda `OLLAMA_KEEP_ALIVE`)
 - `LLM_WARMUP_ON_STARTUP` (default `true`)
 - `LLM_RETRY_JSON_INVALID` (default `1`)
 - `LLM_CHAT_RETRY_JSON_INVALID` (default `1`)
+- `LLM_DIAG_RETRY_JSON_INVALID` (default `1`)
 - `LLM_FORCE_DETERMINISTIC` (força fallback para testes/demo)
 
 Racional:
@@ -141,6 +167,8 @@ Racional:
 - top-p moderado para manter variação controlada
 - timeout maior para absorver cold start local dos modelos
 - chat com modelo menor e timeout próprio para reduzir fallback por timeout
+- diagnóstico com perfil dedicado (modelo leve + JSON estrito + timeout próprio)
+- diagnóstico com `response_format_json=true` e `disable_thinking=true` por padrão
 - chat com `thinking` desativado para reduzir latência e variabilidade de formato
 - warmup para reduzir fallback por primeira chamada (incluindo modelos de diagnóstico e de chat)
 - chat com até 3 tentativas por requisição e retry de timeout transitório (cold start) antes de trocar de modelo
@@ -159,7 +187,7 @@ Request:
 }
 ```
 
-Response (compativel + metadados opcionais):
+Response (compatível + metadados opcionais):
 ```json
 {
   "severity": "high",
@@ -168,7 +196,7 @@ Response (compativel + metadados opcionais):
   "recommended_actions": ["..."],
   "evidence": ["..."],
   "source": "llm",
-  "model": "qwen2.5:7b",
+  "model": "qwen3:4b",
   "latency_ms": 842,
   "used_tools": ["get_event_context", "get_similar_events", "get_vehicle_recent_history"],
   "fallback_reason": null,
@@ -193,6 +221,13 @@ Enviar pergunta:
 curl -X POST "http://localhost:8000/api/chat/ask" \
   -H "Content-Type: application/json" \
   -d "{\"session_id\":1,\"message\":\"Quais os principais riscos da semana?\"}"
+```
+
+Exemplo por motorista:
+```bash
+curl -X POST "http://localhost:8000/api/chat/ask" \
+  -H "Content-Type: application/json" \
+  -d "{\"session_id\":1,\"message\":\"Qual a última viagem da Renata Lima?\"}"
 ```
 
 Resposta (resumo):
@@ -220,7 +255,7 @@ Resposta (resumo):
 - sem score probabilístico calibrado
 - `upload/reset` continua destrutivo para contexto produtivo
 
-## 12) Estrutura do repositorio
+## 12) Estrutura do repositório
 
 ```text
 fleetdoctor/
@@ -261,6 +296,7 @@ fleetdoctor/
         test_llm.py
         test_chat.py
       services/
+        test_diagnosis_engine.py
         test_output_validation.py
   frontend/
     src/pages/
@@ -268,6 +304,8 @@ fleetdoctor/
       Chat.tsx
   docs/
     pitch_3min.md
+    checklist_apresentacao_3min.md
+    decisoes_llm_e_defesa.md
 ```
 
 ## 13) Como executar
@@ -296,6 +334,12 @@ Validação rápida da camada LLM:
 ```bash
 curl "http://localhost:8000/api/llm/health"
 ```
+
+Checklist rápido para evitar fallback no drawer:
+1. confirme em `GET /api/llm/health` que `force_deterministic` está `false`
+2. valide se o modelo de diagnóstico (`diagnosis.primary_model`) aparece em `available_models`
+3. em caso de instabilidade, aumente `LLM_DIAG_TIMEOUT_MS` e mantenha `LLM_DIAG_DISABLE_THINKING=true`
+4. para investigar, envie `debug=true` em `POST /api/diagnosis` e leia `validation_warnings`/`fallback_reason`
 
 ### Frontend
 ```bash
@@ -328,3 +372,4 @@ Executa:
 
 - [docs/pitch_3min.md](docs/pitch_3min.md)
 - [docs/checklist_apresentacao_3min.md](docs/checklist_apresentacao_3min.md)
+- [docs/decisoes_llm_e_defesa.md](docs/decisoes_llm_e_defesa.md)
