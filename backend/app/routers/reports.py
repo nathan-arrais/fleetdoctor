@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
@@ -10,12 +11,12 @@ from ..services.reports import generate_report_html
 
 router = APIRouter()
 
-REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "reports_store")
-REPORTS_DIR = os.path.abspath(REPORTS_DIR)
+DEFAULT_REPORTS_DIR = Path(__file__).resolve().parent.parent / "reports_store"
+REPORTS_DIR = Path(os.getenv("REPORTS_DIR", str(DEFAULT_REPORTS_DIR))).expanduser().resolve()
 
 
 def _ensure_reports_dir():
-    os.makedirs(REPORTS_DIR, exist_ok=True)
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _report_urls(report_id: int):
@@ -40,7 +41,7 @@ def generate_report(payload: ReportGenerateRequest, db: Session = Depends(get_db
     )
     created_at = datetime.utcnow()
     file_name = f"fleetdoctor_report_{created_at.strftime('%Y%m%d_%H%M%S')}.html"
-    file_path = os.path.join(REPORTS_DIR, file_name)
+    file_path = REPORTS_DIR / file_name
 
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(html)
@@ -57,7 +58,7 @@ def generate_report(payload: ReportGenerateRequest, db: Session = Depends(get_db
         query_filter=payload.q,
         html_content=html,
         file_name=file_name,
-        file_path=file_path,
+        file_path=str(file_path),
     )
     db.add(report)
     db.commit()
