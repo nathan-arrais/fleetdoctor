@@ -14,6 +14,7 @@ Problemas comuns:
 Solucao no FleetDoctor:
 - triagem operacional com filtros e drill-down
 - diagnostico por evento/viagem usando **LLM local + fallback deterministico**
+- chat operacional para perguntas livres sobre KPI, triagem, veiculos e viagens
 - geracao de relatorio executivo em HTML
 - importacao de eventos por CSV
 
@@ -87,6 +88,8 @@ Arquivos:
 - [prompts/system_prompt.txt](prompts/system_prompt.txt)
 - [prompts/diagnosis_event_template.txt](prompts/diagnosis_event_template.txt)
 - [prompts/diagnosis_trip_template.txt](prompts/diagnosis_trip_template.txt)
+- [prompts/chat_system_prompt.txt](prompts/chat_system_prompt.txt)
+- [prompts/chat_response_template.txt](prompts/chat_response_template.txt)
 
 Estrategia aplicada:
 - system prompt com regras de comportamento e formato JSON estrito
@@ -98,6 +101,7 @@ Estrategia aplicada:
 
 Especificacao completa:
 - [tools/diagnosis_tools_spec.md](tools/diagnosis_tools_spec.md)
+- [tools/chat_tools_spec.md](tools/chat_tools_spec.md)
 
 Tools:
 - `get_event_context(event_id)`
@@ -159,21 +163,48 @@ Response (compativel + metadados opcionais):
 Health da camada LLM:
 - `GET /api/llm/health`
 
-## 9) O que funcionou
+## 9) Contrato de API de chat
+
+Criar sessao:
+```bash
+curl -X POST "http://localhost:8000/api/chat/sessions" \
+  -H "Content-Type: application/json" \
+  -d "{\"title\":\"Analise operacional\"}"
+```
+
+Enviar pergunta:
+```bash
+curl -X POST "http://localhost:8000/api/chat/ask" \
+  -H "Content-Type: application/json" \
+  -d "{\"session_id\":1,\"message\":\"Quais os principais riscos da semana?\"}"
+```
+
+Resposta (resumo):
+```json
+{
+  "session_id": 1,
+  "answer": "...",
+  "citations": ["get_dashboard_snapshot", "get_top_risks"],
+  "source": "llm",
+  "used_tools": ["get_dashboard_snapshot", "get_top_risks"]
+}
+```
+
+## 10) O que funcionou
 
 - arquitetura hibrida evitou quebra funcional quando modelo local falha
 - JSON schema + validacao reduziu respostas malformadas
 - tools de contexto melhoraram utilidade das recomendacoes
 - contrato da API foi mantido para o frontend existente
 
-## 10) O que nao funcionou / limitacoes
+## 11) O que nao funcionou / limitacoes
 
 - modelo local pequeno pode produzir recomendacoes genericas
 - sem RAG nesta versao (usa somente contexto transacional atual)
 - sem score probabilistico calibrado
 - `upload/reset` continua destrutivo para contexto produtivo
 
-## 11) Estrutura do repositorio
+## 12) Estrutura do repositorio
 
 ```text
 fleetdoctor/
@@ -181,20 +212,27 @@ fleetdoctor/
     system_prompt.txt
     diagnosis_event_template.txt
     diagnosis_trip_template.txt
+    chat_system_prompt.txt
+    chat_response_template.txt
   tools/
     diagnosis_tools_spec.md
+    chat_tools_spec.md
   agents/
     README.md
   backend/
     app/
       agents/
         langgraph_diagnosis_graph.py
+        langgraph_chat_graph.py
       routers/
         diagnosis.py
         llm.py
+        chat.py
       services/
         diagnosis_engine.py
         diagnosis_tools.py
+        chat_engine.py
+        chat_tools.py
         llm_provider.py
         output_validation.py
         diagnostics.py
@@ -205,14 +243,18 @@ fleetdoctor/
         test_reports.py
         test_upload.py
         test_llm.py
+        test_chat.py
+      services/
+        test_output_validation.py
   frontend/
     src/pages/
       Triage.tsx
+      Chat.tsx
   docs/
     pitch_3min.md
 ```
 
-## 12) Como executar
+## 13) Como executar
 
 ### Requisitos
 - Python 3.11+
@@ -244,6 +286,9 @@ npm install
 npm run dev
 ```
 
+Rota de chat:
+- `http://localhost:5173/chat`
+
 ### Testes backend
 ```bash
 cd backend
@@ -251,7 +296,7 @@ pip install -r requirements-dev.txt
 pytest -q tests -p no:cacheprovider
 ```
 
-## 13) CI
+## 14) CI
 
 Workflow em:
 - `.github/workflows/ci.yml`
@@ -260,6 +305,6 @@ Executa:
 - `pytest` backend
 - `npm run build` frontend
 
-## 14) Roteiro de apresentacao
+## 15) Roteiro de apresentacao
 
 - [docs/pitch_3min.md](docs/pitch_3min.md)
