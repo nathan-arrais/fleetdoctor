@@ -127,7 +127,7 @@ Configurações por ambiente:
 - `LLM_TIMEOUT_MS` (default `30000`)
 - `LLM_CONNECT_TIMEOUT_MS` (default `2000`)
 - `LLM_READ_TIMEOUT_MS` (default `30000`)
-- `LLM_CHAT_TIMEOUT_MS` (default `90000`)
+- `LLM_CHAT_TIMEOUT_MS` (default `120000`)
 - `LLM_CHAT_MAX_TOKENS` (default `220`)
 - `LLM_CHAT_DISABLE_THINKING` (default `true`)
 - `OLLAMA_KEEP_ALIVE` (default `10m`)
@@ -142,7 +142,8 @@ Racional:
 - timeout maior para absorver cold start local dos modelos
 - chat com modelo menor e timeout próprio para reduzir fallback por timeout
 - chat com `thinking` desativado para reduzir latência e variabilidade de formato
-- warmup para reduzir fallback por primeira chamada
+- warmup para reduzir fallback por primeira chamada (incluindo modelos de diagnóstico e de chat)
+- chat com até 3 tentativas por requisição e retry de timeout transitório (cold start) antes de trocar de modelo
 - retry curto para respostas sem JSON válido
 
 ## 8) Contrato de API de diagnóstico
@@ -326,3 +327,4 @@ Executa:
 ## 15) Roteiro de apresentação
 
 - [docs/pitch_3min.md](docs/pitch_3min.md)
+- [docs/checklist_apresentacao_3min.md](docs/checklist_apresentacao_3min.md)

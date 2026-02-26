@@ -16,3 +16,6 @@
 - Funcionou: respostas mais contextualizadas mantendo contrato de API.
 - Não funcionou: com modelo local pequeno, algumas respostas vieram genéricas.
 - Mitigação: validação estrutural + fallback determinístico.
+
+Checklist completo:
+- [checklist_apresentacao_3min.md](checklist_apresentacao_3min.md)
