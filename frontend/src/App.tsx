@@ -6,6 +6,7 @@ import Vehicle from "./pages/Vehicle";
 import Trip from "./pages/Trip";
 import Reports from "./pages/Reports";
 import Upload from "./pages/Upload";
+import Chat from "./pages/Chat";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
           <Route path="vehicle/:vehicle_id" element={<Vehicle />} />
           <Route path="trip/:trip_id" element={<Trip />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="chat" element={<Chat />} />
           <Route path="upload" element={<Upload />} />
           <Route path="*" element={<div className="text-slate-500">Pagina nao encontrada</div>} />
         </Route>

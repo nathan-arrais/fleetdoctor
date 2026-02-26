@@ -4,6 +4,7 @@ import { useTheme } from "../theme/useTheme";
 const navItems = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/triage", label: "Triagem" },
+  { to: "/chat", label: "Chat" },
   { to: "/reports", label: "Relatorios" },
   { to: "/upload", label: "Upload" },
 ];
