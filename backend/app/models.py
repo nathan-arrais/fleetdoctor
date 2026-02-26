@@ -78,3 +78,34 @@ class Report(Base):
     html_content = Column(Text)
     file_name = Column(String)
     file_path = Column(String)
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    created_at = Column(DateTime)
+    updated_at = Column(DateTime)
+
+    messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("chat_sessions.id"), index=True)
+    role = Column(String, index=True)
+    content = Column(Text)
+    created_at = Column(DateTime)
+    source = Column(String, nullable=True)
+    model = Column(String, nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    used_tools_json = Column(Text, nullable=True)
+    fallback_reason = Column(Text, nullable=True)
+    validation_warnings_json = Column(Text, nullable=True)
+    citations_json = Column(Text, nullable=True)
+    follow_up_questions_json = Column(Text, nullable=True)
+
+    session = relationship("ChatSession", back_populates="messages")

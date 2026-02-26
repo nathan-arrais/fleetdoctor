@@ -1,0 +1,20 @@
+Analise a pergunta do usuario e responda com base no contexto operacional abaixo.
+
+Intento detectado: {intent}
+
+Pergunta:
+{question}
+
+Historico recente da sessao:
+{history_json}
+
+Resultados das tools:
+{tool_results_json}
+
+Instrucoes:
+- Use apenas os dados das tools e do historico.
+- Se a pergunta pedir um ID especifico e ele nao existir, informe de forma clara.
+- Em "citations", liste apenas os nomes das tools realmente utilizadas.
+- Em "follow_up_questions", traga no maximo 2 perguntas curtas.
+
+Retorne somente JSON no formato exigido.

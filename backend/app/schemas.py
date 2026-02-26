@@ -103,6 +103,58 @@ class DiagnosisResponse(BaseModel):
     validation_warnings: List[str] = Field(default_factory=list)
 
 
+class ChatSessionCreateRequest(BaseModel):
+    title: Optional[str] = None
+
+
+class ChatSessionOut(BaseModel):
+    id: int
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChatMessageOut(BaseModel):
+    id: int
+    session_id: int
+    role: str
+    content: str
+    created_at: datetime
+    source: Optional[str] = None
+    model: Optional[str] = None
+    latency_ms: Optional[int] = None
+    used_tools: List[str] = Field(default_factory=list)
+    fallback_reason: Optional[str] = None
+    validation_warnings: List[str] = Field(default_factory=list)
+    citations: List[str] = Field(default_factory=list)
+    follow_up_questions: List[str] = Field(default_factory=list)
+
+
+class ChatAskRequest(BaseModel):
+    session_id: int
+    message: str
+    debug: bool = False
+    force_deterministic: bool = False
+
+
+class ChatAskResponse(BaseModel):
+    session_id: int
+    answer: str
+    citations: List[str] = Field(default_factory=list)
+    follow_up_questions: List[str] = Field(default_factory=list)
+    source: Optional[str] = None
+    model: Optional[str] = None
+    latency_ms: Optional[int] = None
+    used_tools: List[str] = Field(default_factory=list)
+    fallback_reason: Optional[str] = None
+    validation_warnings: List[str] = Field(default_factory=list)
+    user_message: ChatMessageOut
+    assistant_message: ChatMessageOut
+
+
 class ReportOut(BaseModel):
     id: int
     report_id: Optional[int] = None

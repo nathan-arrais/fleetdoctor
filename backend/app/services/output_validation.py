@@ -79,3 +79,32 @@ def parse_and_validate_diagnosis(raw_text: str, fallback_severity: str = "low") 
         "evidence": evidence,
     }
     return normalized, errors
+
+
+def parse_and_validate_chat_response(raw_text: str) -> tuple[dict[str, Any] | None, list[str]]:
+    warnings: list[str] = []
+    try:
+        payload = _extract_json_candidate(raw_text)
+    except Exception as exc:
+        return None, [str(exc)]
+
+    answer = str(payload.get("answer", "")).strip()
+    if not answer:
+        answer = str(payload.get("summary", "")).strip()
+    if not answer:
+        return None, ["Campo answer ausente ou vazio na resposta do modelo"]
+
+    citations = _as_str_list(payload.get("citations"))
+    if not citations:
+        warnings.append("Campo citations ausente ou vazio")
+
+    follow_up_questions = _as_str_list(payload.get("follow_up_questions"))
+    if not follow_up_questions:
+        warnings.append("Campo follow_up_questions ausente ou vazio")
+
+    normalized = {
+        "answer": answer,
+        "citations": citations,
+        "follow_up_questions": follow_up_questions,
+    }
+    return normalized, warnings
