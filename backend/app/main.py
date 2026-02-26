@@ -31,7 +31,7 @@ def _run_ollama_warmup() -> None:
     settings = LLMSettings()
     chat_settings = build_chat_llm_settings(settings)
     print(
-        "[llm/config] provider=%s base=%s chat_primary=%s chat_fallback=%s chat_timeout_ms=%s chat_max_tokens=%s chat_retry=%s"
+        "[llm/config] provider=%s base=%s chat_primary=%s chat_fallback=%s chat_timeout_ms=%s chat_max_tokens=%s chat_retry=%s chat_disable_thinking=%s"
         % (
             settings.provider,
             settings.ollama_base_url,
@@ -40,6 +40,7 @@ def _run_ollama_warmup() -> None:
             chat_settings.timeout_ms,
             chat_settings.max_tokens,
             chat_settings.retry_json_invalid,
+            chat_settings.disable_thinking,
         )
     )
     if settings.provider != "ollama":

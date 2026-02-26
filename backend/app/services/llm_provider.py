@@ -47,6 +47,7 @@ class LLMSettings:
     connect_timeout_ms: int = field(default_factory=lambda: int(os.getenv("LLM_CONNECT_TIMEOUT_MS", "2000")))
     read_timeout_ms: int = field(default_factory=lambda: int(os.getenv("LLM_READ_TIMEOUT_MS", "30000")))
     keep_alive: str = field(default_factory=lambda: os.getenv("OLLAMA_KEEP_ALIVE", "10m"))
+    disable_thinking: bool = field(default_factory=lambda: _as_bool(os.getenv("LLM_DISABLE_THINKING"), default=False))
     warmup_on_startup: bool = field(default_factory=lambda: _as_bool(os.getenv("LLM_WARMUP_ON_STARTUP"), default=True))
     retry_json_invalid: int = field(default_factory=lambda: int(os.getenv("LLM_RETRY_JSON_INVALID", "1")))
     force_deterministic: bool = field(
@@ -69,6 +70,7 @@ def build_chat_llm_settings(base_settings: LLMSettings | None = None) -> LLMSett
         connect_timeout_ms=int(os.getenv("LLM_CHAT_CONNECT_TIMEOUT_MS", str(base.connect_timeout_ms))),
         read_timeout_ms=int(os.getenv("LLM_CHAT_READ_TIMEOUT_MS", str(chat_timeout))),
         keep_alive=os.getenv("OLLAMA_CHAT_KEEP_ALIVE", base.keep_alive),
+        disable_thinking=_as_bool(os.getenv("LLM_CHAT_DISABLE_THINKING"), default=True),
         warmup_on_startup=base.warmup_on_startup,
         retry_json_invalid=int(os.getenv("LLM_CHAT_RETRY_JSON_INVALID", "1")),
         force_deterministic=base.force_deterministic,
@@ -159,6 +161,8 @@ class OllamaProvider:
         preferred_model: str | None = None,
         max_model_attempts: int | None = None,
         excluded_models: set[str] | None = None,
+        response_format_json: bool = False,
+        disable_thinking: bool | None = None,
     ) -> dict[str, Any]:
         base = self.settings.ollama_base_url.rstrip("/")
         models = self._models(preferred_model=preferred_model)
@@ -200,6 +204,13 @@ class OllamaProvider:
                         "num_predict": self.settings.max_tokens,
                     },
                 }
+                if response_format_json:
+                    payload["format"] = "json"
+                effective_disable_thinking = (
+                    self.settings.disable_thinking if disable_thinking is None else disable_thinking
+                )
+                if effective_disable_thinking:
+                    payload["think"] = False
                 with self._client() as client:
                     response = client.post(f"{base}/api/generate", json=payload)
                     response.raise_for_status()

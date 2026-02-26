@@ -372,6 +372,8 @@ def ask_chat(
                         preferred_model=next_model,
                         max_model_attempts=1,
                         excluded_models=set(attempted_models),
+                        response_format_json=True,
+                        disable_thinking=settings.disable_thinking,
                     )
                     used_model = str(result.get("model") or next_model)
                     if used_model and used_model not in attempted_models:
@@ -431,6 +433,8 @@ def ask_chat(
                             preferred_model=preferred_retry_model,
                             max_model_attempts=1,
                             excluded_models=None if preferred_retry_model else set(attempted_models),
+                            response_format_json=True,
+                            disable_thinking=settings.disable_thinking,
                         )
                         attempts_used += max(1, len(retry_result.get("attempts", [])))
                         used_model = str(retry_result.get("model") or preferred_retry_model or "")

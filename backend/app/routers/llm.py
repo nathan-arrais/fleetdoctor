@@ -20,6 +20,7 @@ def llm_health():
                 "timeout_ms": chat_settings.timeout_ms,
                 "max_tokens": chat_settings.max_tokens,
                 "retry_json_invalid": chat_settings.retry_json_invalid,
+                "disable_thinking": chat_settings.disable_thinking,
             },
             "error": "Provider nao suportado nesta versao",
         }
@@ -31,6 +32,7 @@ def llm_health():
                 "timeout_ms": chat_settings.timeout_ms,
                 "max_tokens": chat_settings.max_tokens,
                 "retry_json_invalid": chat_settings.retry_json_invalid,
+                "disable_thinking": chat_settings.disable_thinking,
             }
         }
     )

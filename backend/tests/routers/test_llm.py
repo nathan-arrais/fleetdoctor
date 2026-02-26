@@ -8,6 +8,7 @@ def test_llm_health_retorna_configuracao_basica(client):
     assert "chat" in payload
     assert "primary_model" in payload["chat"]
     assert "fallback_model" in payload["chat"]
+    assert "disable_thinking" in payload["chat"]
     if payload["provider"] == "ollama":
         assert "timeouts" in payload
         assert "keep_alive" in payload

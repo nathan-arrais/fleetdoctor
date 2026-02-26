@@ -47,11 +47,13 @@ def test_generate_envia_keep_alive(monkeypatch):
     monkeypatch.setattr(provider, "_available_models", lambda: [])
     monkeypatch.setattr(provider, "_client", lambda: fake_client)
 
-    result = provider.generate("system", "user")
+    result = provider.generate("system", "user", response_format_json=True, disable_thinking=True)
 
     assert result["text"] == "ok"
     assert captured_posts
     assert captured_posts[0]["keep_alive"] == "20m"
+    assert captured_posts[0]["format"] == "json"
+    assert captured_posts[0]["think"] is False
 
 
 def test_generate_retorna_erro_quando_modelos_entregam_resposta_vazia(monkeypatch):
@@ -122,6 +124,7 @@ def test_build_chat_settings_aplica_defaults(monkeypatch):
     assert chat_settings.timeout_ms == 90000
     assert chat_settings.max_tokens == 220
     assert chat_settings.retry_json_invalid == 1
+    assert chat_settings.disable_thinking is True
 
 
 def test_generate_respeita_limite_de_tentativas_por_modelo(monkeypatch):

@@ -129,6 +129,7 @@ Configuracoes por ambiente:
 - `LLM_READ_TIMEOUT_MS` (default `30000`)
 - `LLM_CHAT_TIMEOUT_MS` (default `90000`)
 - `LLM_CHAT_MAX_TOKENS` (default `220`)
+- `LLM_CHAT_DISABLE_THINKING` (default `true`)
 - `OLLAMA_KEEP_ALIVE` (default `10m`)
 - `LLM_WARMUP_ON_STARTUP` (default `true`)
 - `LLM_RETRY_JSON_INVALID` (default `1`)
@@ -140,6 +141,7 @@ Racional:
 - top-p moderado para manter variacao controlada
 - timeout maior para absorver cold start local dos modelos
 - chat com modelo menor e timeout proprio para reduzir fallback por timeout
+- chat com `thinking` desativado para reduzir latencia e variabilidade de formato
 - warmup para reduzir fallback por primeira chamada
 - retry curto para respostas sem JSON valido
 
