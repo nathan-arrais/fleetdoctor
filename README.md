@@ -41,6 +41,22 @@ npm install
 npm run dev
 ```
 
+Testes automatizados (backend):
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+Variaveis de ambiente do backend:
+- `FLEETDOCTOR_DB_PATH`: caminho do SQLite local quando `DATABASE_URL` nao for informado.
+- `DATABASE_URL`: string de conexao completa para banco (sobrescreve `FLEETDOCTOR_DB_PATH`).
+- `REPORTS_DIR`: pasta de saida dos HTMLs de relatorio.
+
+CI (GitHub Actions):
+- workflow em `.github/workflows/ci.yml`
+- executa `pytest` no backend e `npm run build` no frontend em push/PR
+
 ## Links de entrega
 - Frontend (Vercel): `https://fleetdoctor.vercel.app/`
 - Backend (Render): `https://fleetdoctor.onrender.com/`
@@ -320,9 +336,16 @@ fleetdoctor/
       services/
         diagnostics.py
         reports.py
+    tests/
+      routers/
+        test_health.py
+        test_diagnosis.py
+        test_upload.py
+        test_reports.py
       reports_store/
       fleetdoctor.db
     requirements.txt
+    requirements-dev.txt
   frontend/
     .env.example
     public/
@@ -340,6 +363,9 @@ fleetdoctor/
       App.tsx
       main.tsx
     package.json
+  .github/
+    workflows/
+      ci.yml
   README.md
 ```
 
@@ -347,6 +373,6 @@ fleetdoctor/
 O FleetDoctor cumpre bem o objetivo de prototipo funcional: entrega fluxo fim-a-fim para monitorar eventos, priorizar ocorrencias, diagnosticar rapidamente e gerar relatorios.
 
 Para avancar para um contexto produtivo, os proximos passos de maior impacto sao:
-- adicionar testes automatizados e controle de qualidade de dado no upload
+- ampliar cobertura dos testes automatizados e controle de qualidade de dado no upload
 - evoluir o mock para arquitetura hibrida com IA real e fallback deterministico
 - migrar persistencia para banco transacional gerenciado quando houver requisito de escala
