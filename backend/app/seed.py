@@ -1,7 +1,7 @@
 import random
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from .db import Base, engine, SessionLocal
+from .db import Base, engine, SessionLocal, ensure_schema_compatibility
 from .models import Vehicle, Trip, Event
 
 UF_TO_REGION = {
@@ -40,6 +40,7 @@ STATUS = ["active", "in_maintenance", "out_of_service"]
 
 def seed():
     Base.metadata.create_all(bind=engine)
+    ensure_schema_compatibility(engine)
     db: Session = SessionLocal()
 
     if db.query(Vehicle).count() > 0:

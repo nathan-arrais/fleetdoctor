@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .db import Base, engine
+from .db import Base, engine, ensure_schema_compatibility
 from .routers import health, dashboard, triage, vehicles, trips, diagnosis, reports, upload, llm, chat
 
 app = FastAPI(title="FleetDoctor API", version="0.1.0")
@@ -18,6 +18,7 @@ app.add_middleware(
 )
 
 Base.metadata.create_all(bind=engine)
+ensure_schema_compatibility(engine)
 
 app.include_router(health.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
