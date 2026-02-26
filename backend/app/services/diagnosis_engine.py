@@ -9,11 +9,12 @@ from ..agents.langgraph_diagnosis_graph import DiagnosisGraphState, build_diagno
 from ..models import Event, Trip
 from .diagnostics import diagnose_event, diagnose_trip
 from .diagnosis_tools import DiagnosisTools
-from .llm_provider import LLMSettings, OllamaProvider
+from .llm_provider import LLMGenerationError, LLMSettings, OllamaProvider
 from .output_validation import parse_and_validate_diagnosis
 
 
 PROMPTS_DIR = Path(__file__).resolve().parents[3] / "prompts"
+DIAGNOSIS_MAX_LLM_ATTEMPTS = 3
 DIAGNOSIS_JSON_RETRY_HINT = (
     "\n\nIMPORTANTE: responda SOMENTE com JSON valido no formato "
     '{"severity":"low|medium|high|critical","summary":"...","probable_causes":["..."],'
@@ -55,6 +56,17 @@ def _should_retry_diagnosis_output(errors: list[str]) -> bool:
         "campo summary ausente ou vazio",
     ]
     return any(marker in lowered for marker in retry_markers)
+
+
+def _pick_next_model(settings: LLMSettings, attempted_models: list[str], preferred_model: str | None = None) -> str | None:
+    candidates = []
+    if preferred_model:
+        candidates.append(preferred_model)
+    candidates.extend([settings.primary_model, settings.fallback_model])
+    for model in candidates:
+        if model and model not in attempted_models:
+            return model
+    return None
 
 
 def _metadata_payload(
@@ -117,21 +129,67 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
                 "tool_results": tool_results,
                 "user_prompt": user_prompt,
                 "system_prompt": _load_prompt("system_prompt.txt"),
+                "llm_attempts_used": 0,
+                "llm_attempted_models": [],
             }
         except Exception as exc:
             return {**state, "validation_errors": [str(exc)], "fallback_reason": str(exc)}
 
     def run_llm(state: DiagnosisGraphState) -> DiagnosisGraphState:
-        try:
-            result = provider.generate(state["system_prompt"], state["user_prompt"])
-            return {
-                **state,
-                "llm_text": result["text"],
-                "llm_model": result.get("model"),
-                "llm_latency_ms": result.get("latency_ms"),
-            }
-        except Exception as exc:
-            return {**state, "validation_errors": [str(exc)], "fallback_reason": str(exc)}
+        existing_errors = list(state.get("validation_errors", []))
+        attempts_used = int(state.get("llm_attempts_used", 0))
+        attempted_models = list(state.get("llm_attempted_models", []))
+        attempt_error_messages: list[str] = []
+
+        while attempts_used < DIAGNOSIS_MAX_LLM_ATTEMPTS:
+            next_model = _pick_next_model(settings, attempted_models)
+            if not next_model:
+                break
+
+            try:
+                result = provider.generate(
+                    state["system_prompt"],
+                    state["user_prompt"],
+                    preferred_model=next_model,
+                    max_model_attempts=1,
+                    excluded_models=set(attempted_models),
+                )
+                attempts_used += max(1, len(result.get("attempts", [])))
+                used_model = str(result.get("model") or next_model)
+                if used_model and used_model not in attempted_models:
+                    attempted_models.append(used_model)
+                return {
+                    **state,
+                    "llm_text": result["text"],
+                    "llm_model": result.get("model"),
+                    "llm_latency_ms": result.get("latency_ms"),
+                    "llm_attempts_used": attempts_used,
+                    "llm_attempted_models": attempted_models,
+                    "validation_errors": existing_errors,
+                }
+            except LLMGenerationError as exc:
+                attempts = exc.attempts
+                attempts_used += max(1, len(attempts))
+                for attempt in attempts:
+                    model_name = str(attempt.get("model") or "")
+                    if model_name and model_name not in attempted_models:
+                        attempted_models.append(model_name)
+                attempt_error_messages.append(str(exc))
+            except Exception as exc:
+                attempts_used += 1
+                attempt_error_messages.append(str(exc))
+
+        if not attempt_error_messages:
+            attempt_error_messages = ["Orcamento de tentativas da LLM esgotado"]
+        last_error = " | ".join(attempt_error_messages)
+        all_errors = existing_errors + attempt_error_messages
+        return {
+            **state,
+            "llm_attempts_used": attempts_used,
+            "llm_attempted_models": attempted_models,
+            "validation_errors": all_errors,
+            "fallback_reason": last_error,
+        }
 
     def validate_output(state: DiagnosisGraphState) -> DiagnosisGraphState:
         if state.get("validation_errors"):
@@ -139,38 +197,55 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
 
         fallback_severity = str(state["context"]["event"].get("severity", "low"))
         parsed, errors = parse_and_validate_diagnosis(state.get("llm_text", ""), fallback_severity=fallback_severity)
+        attempts_used = int(state.get("llm_attempts_used", 0))
+        attempted_models = list(state.get("llm_attempted_models", []))
+        remaining_budget = DIAGNOSIS_MAX_LLM_ATTEMPTS - attempts_used
         if parsed is None and max(settings.retry_json_invalid, 0) > 0 and _should_retry_diagnosis_output(errors):
-            retry_prompt = state.get("user_prompt", "") + DIAGNOSIS_JSON_RETRY_HINT
-            try:
-                retry_result = provider.generate(
-                    state.get("system_prompt", ""),
-                    retry_prompt,
-                    preferred_model=state.get("llm_model"),
-                )
-                retry_parsed, retry_errors = parse_and_validate_diagnosis(
-                    retry_result.get("text", ""),
-                    fallback_severity=fallback_severity,
-                )
-                if retry_parsed is not None:
-                    retry_note = "Retry de JSON aplicado apos falha inicial: " + "; ".join(errors)
-                    return {
-                        **state,
-                        "llm_text": retry_result.get("text", ""),
-                        "llm_model": retry_result.get("model"),
-                        "llm_latency_ms": retry_result.get("latency_ms"),
-                        "diagnosis": _metadata_payload(
-                            retry_parsed,
-                            source="llm",
-                            model=retry_result.get("model"),
-                            latency_ms=retry_result.get("latency_ms"),
-                            used_tools=state.get("used_tools"),
-                            validation_warnings=[retry_note] + retry_errors,
-                        ),
-                        "source": "llm",
-                    }
-                errors = errors + ["Retry de JSON falhou: " + "; ".join(retry_errors)]
-            except Exception as retry_exc:
-                errors = errors + [f"Retry de JSON falhou: {retry_exc}"]
+            if remaining_budget <= 0:
+                errors = errors + ["Retry de JSON nao executado: orcamento de tentativas da LLM esgotado"]
+            else:
+                retry_prompt = state.get("user_prompt", "") + DIAGNOSIS_JSON_RETRY_HINT
+                preferred_retry_model = state.get("llm_model")
+                if not preferred_retry_model:
+                    preferred_retry_model = _pick_next_model(settings, attempted_models)
+                try:
+                    retry_result = provider.generate(
+                        state.get("system_prompt", ""),
+                        retry_prompt,
+                        preferred_model=preferred_retry_model,
+                        max_model_attempts=1,
+                        excluded_models=None if preferred_retry_model else set(attempted_models),
+                    )
+                    attempts_used += max(1, len(retry_result.get("attempts", [])))
+                    used_model = str(retry_result.get("model") or preferred_retry_model or "")
+                    if used_model and used_model not in attempted_models:
+                        attempted_models.append(used_model)
+                    retry_parsed, retry_errors = parse_and_validate_diagnosis(
+                        retry_result.get("text", ""),
+                        fallback_severity=fallback_severity,
+                    )
+                    if retry_parsed is not None:
+                        retry_note = "Retry de JSON aplicado apos falha inicial: " + "; ".join(errors)
+                        return {
+                            **state,
+                            "llm_text": retry_result.get("text", ""),
+                            "llm_model": retry_result.get("model"),
+                            "llm_latency_ms": retry_result.get("latency_ms"),
+                            "llm_attempts_used": attempts_used,
+                            "llm_attempted_models": attempted_models,
+                            "diagnosis": _metadata_payload(
+                                retry_parsed,
+                                source="llm",
+                                model=retry_result.get("model"),
+                                latency_ms=retry_result.get("latency_ms"),
+                                used_tools=state.get("used_tools"),
+                                validation_warnings=[retry_note] + retry_errors,
+                            ),
+                            "source": "llm",
+                        }
+                    errors = errors + ["Retry de JSON falhou: " + "; ".join(retry_errors)]
+                except Exception as retry_exc:
+                    errors = errors + [f"Retry de JSON falhou: {retry_exc}"]
         if parsed is None:
             return {**state, "validation_errors": errors, "fallback_reason": "; ".join(errors)}
         return {
@@ -271,59 +346,122 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
                 "tool_results": tool_results,
                 "user_prompt": user_prompt,
                 "system_prompt": _load_prompt("system_prompt.txt"),
+                "llm_attempts_used": 0,
+                "llm_attempted_models": [],
             }
         except Exception as exc:
             return {**state, "validation_errors": [str(exc)], "fallback_reason": str(exc)}
 
     def run_llm(state: DiagnosisGraphState) -> DiagnosisGraphState:
-        try:
-            result = provider.generate(state["system_prompt"], state["user_prompt"])
-            return {
-                **state,
-                "llm_text": result["text"],
-                "llm_model": result.get("model"),
-                "llm_latency_ms": result.get("latency_ms"),
-            }
-        except Exception as exc:
-            return {**state, "validation_errors": [str(exc)], "fallback_reason": str(exc)}
+        existing_errors = list(state.get("validation_errors", []))
+        attempts_used = int(state.get("llm_attempts_used", 0))
+        attempted_models = list(state.get("llm_attempted_models", []))
+        attempt_error_messages: list[str] = []
+
+        while attempts_used < DIAGNOSIS_MAX_LLM_ATTEMPTS:
+            next_model = _pick_next_model(settings, attempted_models)
+            if not next_model:
+                break
+
+            try:
+                result = provider.generate(
+                    state["system_prompt"],
+                    state["user_prompt"],
+                    preferred_model=next_model,
+                    max_model_attempts=1,
+                    excluded_models=set(attempted_models),
+                )
+                attempts_used += max(1, len(result.get("attempts", [])))
+                used_model = str(result.get("model") or next_model)
+                if used_model and used_model not in attempted_models:
+                    attempted_models.append(used_model)
+                return {
+                    **state,
+                    "llm_text": result["text"],
+                    "llm_model": result.get("model"),
+                    "llm_latency_ms": result.get("latency_ms"),
+                    "llm_attempts_used": attempts_used,
+                    "llm_attempted_models": attempted_models,
+                    "validation_errors": existing_errors,
+                }
+            except LLMGenerationError as exc:
+                attempts = exc.attempts
+                attempts_used += max(1, len(attempts))
+                for attempt in attempts:
+                    model_name = str(attempt.get("model") or "")
+                    if model_name and model_name not in attempted_models:
+                        attempted_models.append(model_name)
+                attempt_error_messages.append(str(exc))
+            except Exception as exc:
+                attempts_used += 1
+                attempt_error_messages.append(str(exc))
+
+        if not attempt_error_messages:
+            attempt_error_messages = ["Orcamento de tentativas da LLM esgotado"]
+        last_error = " | ".join(attempt_error_messages)
+        all_errors = existing_errors + attempt_error_messages
+        return {
+            **state,
+            "llm_attempts_used": attempts_used,
+            "llm_attempted_models": attempted_models,
+            "validation_errors": all_errors,
+            "fallback_reason": last_error,
+        }
 
     def validate_output(state: DiagnosisGraphState) -> DiagnosisGraphState:
         if state.get("validation_errors"):
             return state
         fallback_severity = "low"
         parsed, errors = parse_and_validate_diagnosis(state.get("llm_text", ""), fallback_severity=fallback_severity)
+        attempts_used = int(state.get("llm_attempts_used", 0))
+        attempted_models = list(state.get("llm_attempted_models", []))
+        remaining_budget = DIAGNOSIS_MAX_LLM_ATTEMPTS - attempts_used
         if parsed is None and max(settings.retry_json_invalid, 0) > 0 and _should_retry_diagnosis_output(errors):
-            retry_prompt = state.get("user_prompt", "") + DIAGNOSIS_JSON_RETRY_HINT
-            try:
-                retry_result = provider.generate(
-                    state.get("system_prompt", ""),
-                    retry_prompt,
-                    preferred_model=state.get("llm_model"),
-                )
-                retry_parsed, retry_errors = parse_and_validate_diagnosis(
-                    retry_result.get("text", ""),
-                    fallback_severity=fallback_severity,
-                )
-                if retry_parsed is not None:
-                    retry_note = "Retry de JSON aplicado apos falha inicial: " + "; ".join(errors)
-                    return {
-                        **state,
-                        "llm_text": retry_result.get("text", ""),
-                        "llm_model": retry_result.get("model"),
-                        "llm_latency_ms": retry_result.get("latency_ms"),
-                        "diagnosis": _metadata_payload(
-                            retry_parsed,
-                            source="llm",
-                            model=retry_result.get("model"),
-                            latency_ms=retry_result.get("latency_ms"),
-                            used_tools=state.get("used_tools"),
-                            validation_warnings=[retry_note] + retry_errors,
-                        ),
-                        "source": "llm",
-                    }
-                errors = errors + ["Retry de JSON falhou: " + "; ".join(retry_errors)]
-            except Exception as retry_exc:
-                errors = errors + [f"Retry de JSON falhou: {retry_exc}"]
+            if remaining_budget <= 0:
+                errors = errors + ["Retry de JSON nao executado: orcamento de tentativas da LLM esgotado"]
+            else:
+                retry_prompt = state.get("user_prompt", "") + DIAGNOSIS_JSON_RETRY_HINT
+                preferred_retry_model = state.get("llm_model")
+                if not preferred_retry_model:
+                    preferred_retry_model = _pick_next_model(settings, attempted_models)
+                try:
+                    retry_result = provider.generate(
+                        state.get("system_prompt", ""),
+                        retry_prompt,
+                        preferred_model=preferred_retry_model,
+                        max_model_attempts=1,
+                        excluded_models=None if preferred_retry_model else set(attempted_models),
+                    )
+                    attempts_used += max(1, len(retry_result.get("attempts", [])))
+                    used_model = str(retry_result.get("model") or preferred_retry_model or "")
+                    if used_model and used_model not in attempted_models:
+                        attempted_models.append(used_model)
+                    retry_parsed, retry_errors = parse_and_validate_diagnosis(
+                        retry_result.get("text", ""),
+                        fallback_severity=fallback_severity,
+                    )
+                    if retry_parsed is not None:
+                        retry_note = "Retry de JSON aplicado apos falha inicial: " + "; ".join(errors)
+                        return {
+                            **state,
+                            "llm_text": retry_result.get("text", ""),
+                            "llm_model": retry_result.get("model"),
+                            "llm_latency_ms": retry_result.get("latency_ms"),
+                            "llm_attempts_used": attempts_used,
+                            "llm_attempted_models": attempted_models,
+                            "diagnosis": _metadata_payload(
+                                retry_parsed,
+                                source="llm",
+                                model=retry_result.get("model"),
+                                latency_ms=retry_result.get("latency_ms"),
+                                used_tools=state.get("used_tools"),
+                                validation_warnings=[retry_note] + retry_errors,
+                            ),
+                            "source": "llm",
+                        }
+                    errors = errors + ["Retry de JSON falhou: " + "; ".join(retry_errors)]
+                except Exception as retry_exc:
+                    errors = errors + [f"Retry de JSON falhou: {retry_exc}"]
         if parsed is None:
             return {**state, "validation_errors": errors, "fallback_reason": "; ".join(errors)}
         return {

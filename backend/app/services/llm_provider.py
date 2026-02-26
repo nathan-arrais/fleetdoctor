@@ -2,7 +2,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Iterable
 
 import httpx
 
@@ -11,6 +11,27 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _dedupe(items: Iterable[str]) -> list[str]:
+    output: list[str] = []
+    for item in items:
+        if item and item not in output:
+            output.append(item)
+    return output
+
+
+def _classify_error(exc: Exception) -> str:
+    if isinstance(exc, (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.TimeoutException)):
+        return "timeout"
+    if isinstance(exc, httpx.NetworkError):
+        return "network"
+    text = str(exc).lower()
+    if "resposta vazia" in text:
+        return "empty_response"
+    if "json" in text:
+        return "json_invalid"
+    return "unknown"
 
 
 @dataclass
@@ -31,6 +52,33 @@ class LLMSettings:
     force_deterministic: bool = field(
         default_factory=lambda: _as_bool(os.getenv("LLM_FORCE_DETERMINISTIC"), default=False)
     )
+
+
+def build_chat_llm_settings(base_settings: LLMSettings | None = None) -> LLMSettings:
+    base = base_settings or LLMSettings()
+    chat_timeout = int(os.getenv("LLM_CHAT_TIMEOUT_MS", "90000"))
+    return LLMSettings(
+        provider=base.provider,
+        ollama_base_url=base.ollama_base_url,
+        primary_model=os.getenv("OLLAMA_CHAT_MODEL_PRIMARY", "qwen3:4b"),
+        fallback_model=os.getenv("OLLAMA_CHAT_MODEL_FALLBACK", "qwen2.5:7b"),
+        temperature=float(os.getenv("LLM_CHAT_TEMPERATURE", str(base.temperature))),
+        top_p=float(os.getenv("LLM_CHAT_TOP_P", str(base.top_p))),
+        max_tokens=int(os.getenv("LLM_CHAT_MAX_TOKENS", "220")),
+        timeout_ms=chat_timeout,
+        connect_timeout_ms=int(os.getenv("LLM_CHAT_CONNECT_TIMEOUT_MS", str(base.connect_timeout_ms))),
+        read_timeout_ms=int(os.getenv("LLM_CHAT_READ_TIMEOUT_MS", str(chat_timeout))),
+        keep_alive=os.getenv("OLLAMA_CHAT_KEEP_ALIVE", base.keep_alive),
+        warmup_on_startup=base.warmup_on_startup,
+        retry_json_invalid=int(os.getenv("LLM_CHAT_RETRY_JSON_INVALID", "1")),
+        force_deterministic=base.force_deterministic,
+    )
+
+
+class LLMGenerationError(RuntimeError):
+    def __init__(self, message: str, *, attempts: list[dict[str, Any]]):
+        super().__init__(message)
+        self.attempts = attempts
 
 
 _last_warmup_report: dict[str, Any] | None = None
@@ -63,13 +111,9 @@ class OllamaProvider:
         if preferred_model:
             models.append(preferred_model)
         models.extend([self.settings.primary_model, self.settings.fallback_model])
-        deduped: list[str] = []
-        for model in models:
-            if model and model not in deduped:
-                deduped.append(model)
-        return deduped
+        return _dedupe(models)
 
-    def health(self) -> dict[str, Any]:
+    def health(self, extra: dict[str, Any] | None = None) -> dict[str, Any]:
         base = self.settings.ollama_base_url.rstrip("/")
         available_models: list[str] = []
         reachable = False
@@ -85,7 +129,7 @@ class OllamaProvider:
         except Exception as exc:
             error_message = str(exc)
 
-        return {
+        payload = {
             "provider": "ollama",
             "base_url": base,
             "reachable": reachable,
@@ -98,20 +142,25 @@ class OllamaProvider:
                 "connect_ms": self.settings.connect_timeout_ms,
                 "read_ms": self.settings.read_timeout_ms,
             },
+            "max_tokens": self.settings.max_tokens,
             "keep_alive": self.settings.keep_alive,
             "warmup_enabled": self.settings.warmup_on_startup,
             "last_warmup": _last_warmup_report,
             "error": error_message,
         }
+        if extra:
+            payload.update(extra)
+        return payload
 
     def generate(
         self,
         system_prompt: str,
         user_prompt: str,
         preferred_model: str | None = None,
+        max_model_attempts: int | None = None,
+        excluded_models: set[str] | None = None,
     ) -> dict[str, Any]:
         base = self.settings.ollama_base_url.rstrip("/")
-        model_errors: list[str] = []
         models = self._models(preferred_model=preferred_model)
         available_models = self._available_models()
         if available_models:
@@ -121,6 +170,21 @@ class OllamaProvider:
             else:
                 models = [available_models[0], *models]
 
+        if excluded_models:
+            models = [model for model in models if model not in excluded_models]
+        models = _dedupe(models)
+
+        if max_model_attempts is not None and max_model_attempts > 0:
+            models = models[:max_model_attempts]
+
+        if not models:
+            raise LLMGenerationError(
+                "Nenhum modelo disponivel para tentativa no Ollama",
+                attempts=[],
+            )
+
+        model_errors: list[str] = []
+        attempts: list[dict[str, Any]] = []
         for model in models:
             request_started = time.perf_counter()
             try:
@@ -140,19 +204,45 @@ class OllamaProvider:
                     response = client.post(f"{base}/api/generate", json=payload)
                     response.raise_for_status()
                     data = response.json()
+
                 elapsed_ms = int((time.perf_counter() - request_started) * 1000)
                 text = str(data.get("response", "")).strip()
                 if not text:
                     raise ValueError("Resposta vazia do modelo")
+
+                attempts.append(
+                    {
+                        "model": data.get("model", model),
+                        "ok": True,
+                        "latency_ms": elapsed_ms,
+                        "error": None,
+                        "error_type": None,
+                    }
+                )
                 return {
                     "text": text,
                     "model": data.get("model", model),
                     "latency_ms": elapsed_ms,
+                    "attempts": attempts,
                 }
             except Exception as exc:
+                elapsed_ms = int((time.perf_counter() - request_started) * 1000)
+                error_type = _classify_error(exc)
+                attempts.append(
+                    {
+                        "model": model,
+                        "ok": False,
+                        "latency_ms": elapsed_ms,
+                        "error": str(exc),
+                        "error_type": error_type,
+                    }
+                )
                 model_errors.append(f"{model}: {exc}")
 
-        raise RuntimeError("Todas as tentativas com Ollama falharam: " + " | ".join(model_errors))
+        raise LLMGenerationError(
+            "Todas as tentativas com Ollama falharam: " + " | ".join(model_errors),
+            attempts=attempts,
+        )
 
     def warmup(self) -> dict[str, Any]:
         global _last_warmup_report

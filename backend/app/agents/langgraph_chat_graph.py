@@ -16,6 +16,8 @@ class ChatGraphState(TypedDict, total=False):
     llm_text: str
     llm_model: str | None
     llm_latency_ms: int | None
+    llm_attempts_used: int
+    llm_attempted_models: list[str]
     answer_payload: dict[str, Any] | None
     validation_errors: list[str]
     fallback_reason: str | None

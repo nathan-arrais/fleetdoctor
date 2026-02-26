@@ -12,6 +12,8 @@ class DiagnosisGraphState(TypedDict, total=False):
     llm_text: str
     llm_model: str | None
     llm_latency_ms: int | None
+    llm_attempts_used: int
+    llm_attempted_models: list[str]
     diagnosis: dict[str, Any] | None
     validation_errors: list[str]
     used_tools: list[str]

@@ -10,11 +10,12 @@ from sqlalchemy.orm import Session
 from ..agents.langgraph_chat_graph import ChatGraphState, build_chat_graph
 from ..models import ChatMessage, ChatSession
 from .chat_tools import ChatTools
-from .llm_provider import LLMSettings, OllamaProvider
+from .llm_provider import LLMGenerationError, LLMSettings, OllamaProvider, build_chat_llm_settings
 from .output_validation import parse_and_validate_chat_response
 
 
 PROMPTS_DIR = Path(__file__).resolve().parents[3] / "prompts"
+CHAT_MAX_LLM_ATTEMPTS = 2
 CHAT_JSON_RETRY_HINT = (
     "\n\nIMPORTANTE: responda SOMENTE com JSON valido no formato "
     '{"answer":"...","citations":["..."],"follow_up_questions":["..."]}. '
@@ -189,6 +190,17 @@ def _should_retry_chat_output(errors: list[str]) -> bool:
     return any(marker in lowered for marker in retry_markers)
 
 
+def _pick_next_model(settings: LLMSettings, attempted_models: list[str], preferred_model: str | None = None) -> str | None:
+    candidates = []
+    if preferred_model:
+        candidates.append(preferred_model)
+    candidates.extend([settings.primary_model, settings.fallback_model])
+    for model in candidates:
+        if model and model not in attempted_models:
+            return model
+    return None
+
+
 def _build_fallback_answer(intent: str, question: str, tool_results: dict[str, Any], warnings: list[str]) -> dict[str, Any]:
     lines = []
     citations = []
@@ -283,12 +295,13 @@ def ask_chat(
     db.refresh(session)
 
     tools = ChatTools(db)
-    settings = LLMSettings()
+    base_settings = LLMSettings()
+    settings = build_chat_llm_settings(base_settings)
     provider = OllamaProvider(settings)
     intent = _infer_intent(normalized_message)
     ids = _extract_ids(normalized_message)
 
-    if force_deterministic or settings.force_deterministic or settings.provider != "ollama":
+    if force_deterministic or base_settings.force_deterministic or settings.provider != "ollama":
         tool_results, used_tools, tool_warnings = _collect_tool_results(tools, intent, ids, normalized_message)
         payload = _build_fallback_answer(intent, normalized_message, tool_results, tool_warnings)
         answer_payload = {
@@ -337,22 +350,65 @@ def ask_chat(
                 "user_prompt": user_prompt,
                 "system_prompt": _load_prompt("chat_system_prompt.txt"),
                 "validation_errors": tool_warnings,
+                "llm_attempts_used": 0,
+                "llm_attempted_models": [],
             }
 
         def run_llm_node(state: ChatGraphState) -> ChatGraphState:
-            if state.get("validation_errors"):
-                # Apenas registra warnings de tool; nao impede chamada ao modelo.
-                pass
-            try:
-                result = provider.generate(state["system_prompt"], state["user_prompt"])
-                return {
-                    **state,
-                    "llm_text": result["text"],
-                    "llm_model": result.get("model"),
-                    "llm_latency_ms": result.get("latency_ms"),
-                }
-            except Exception as exc:
-                return {**state, "validation_errors": [str(exc)], "fallback_reason": str(exc)}
+            existing_errors = list(state.get("validation_errors", []))
+            attempts_used = int(state.get("llm_attempts_used", 0))
+            attempted_models = list(state.get("llm_attempted_models", []))
+            attempt_error_messages: list[str] = []
+
+            while attempts_used < CHAT_MAX_LLM_ATTEMPTS:
+                next_model = _pick_next_model(settings, attempted_models)
+                if not next_model:
+                    break
+
+                try:
+                    result = provider.generate(
+                        state["system_prompt"],
+                        state["user_prompt"],
+                        preferred_model=next_model,
+                        max_model_attempts=1,
+                        excluded_models=set(attempted_models),
+                    )
+                    used_model = str(result.get("model") or next_model)
+                    if used_model and used_model not in attempted_models:
+                        attempted_models.append(used_model)
+                    attempts_used += max(1, len(result.get("attempts", [])))
+                    return {
+                        **state,
+                        "llm_text": result["text"],
+                        "llm_model": result.get("model"),
+                        "llm_latency_ms": result.get("latency_ms"),
+                        "llm_attempts_used": attempts_used,
+                        "llm_attempted_models": attempted_models,
+                        "validation_errors": existing_errors,
+                    }
+                except LLMGenerationError as exc:
+                    attempts = exc.attempts
+                    attempts_used += max(1, len(attempts))
+                    for attempt in attempts:
+                        model_name = str(attempt.get("model") or "")
+                        if model_name and model_name not in attempted_models:
+                            attempted_models.append(model_name)
+                    attempt_error_messages.append(str(exc))
+                except Exception as exc:
+                    attempts_used += 1
+                    attempt_error_messages.append(str(exc))
+
+            if not attempt_error_messages:
+                attempt_error_messages = ["Orcamento de tentativas da LLM esgotado"]
+            last_error = " | ".join(attempt_error_messages)
+            all_errors = existing_errors + attempt_error_messages
+            return {
+                **state,
+                "llm_attempts_used": attempts_used,
+                "llm_attempted_models": attempted_models,
+                "validation_errors": all_errors,
+                "fallback_reason": last_error,
+            }
 
         def validate_output_node(state: ChatGraphState) -> ChatGraphState:
             errors = list(state.get("validation_errors", []))
@@ -360,24 +416,36 @@ def ask_chat(
             if parsed is None:
                 parse_errors = list(warnings)
                 should_retry = max(settings.retry_json_invalid, 0) > 0 and _should_retry_chat_output(parse_errors)
-                if should_retry:
+                attempts_used = int(state.get("llm_attempts_used", 0))
+                attempted_models = list(state.get("llm_attempted_models", []))
+                remaining_budget = CHAT_MAX_LLM_ATTEMPTS - attempts_used
+                if should_retry and remaining_budget > 0:
                     retry_prompt = state.get("user_prompt", "") + CHAT_JSON_RETRY_HINT
+                    preferred_retry_model = state.get("llm_model")
+                    if not preferred_retry_model:
+                        preferred_retry_model = _pick_next_model(settings, attempted_models)
                     try:
                         retry_result = provider.generate(
                             state.get("system_prompt", ""),
                             retry_prompt,
-                            preferred_model=state.get("llm_model"),
+                            preferred_model=preferred_retry_model,
+                            max_model_attempts=1,
+                            excluded_models=None if preferred_retry_model else set(attempted_models),
                         )
+                        attempts_used += max(1, len(retry_result.get("attempts", [])))
+                        used_model = str(retry_result.get("model") or preferred_retry_model or "")
+                        if used_model and used_model not in attempted_models:
+                            attempted_models.append(used_model)
                         retry_parsed, retry_warnings = parse_and_validate_chat_response(retry_result.get("text", ""))
                         if retry_parsed is not None:
-                            retry_note = (
-                                "Retry de JSON aplicado apos falha inicial: " + "; ".join(parse_errors)
-                            )
+                            retry_note = "Retry de JSON aplicado apos falha inicial: " + "; ".join(parse_errors)
                             return {
                                 **state,
                                 "llm_text": retry_result.get("text", ""),
                                 "llm_model": retry_result.get("model"),
                                 "llm_latency_ms": retry_result.get("latency_ms"),
+                                "llm_attempts_used": attempts_used,
+                                "llm_attempted_models": attempted_models,
                                 "answer_payload": {
                                     "answer": retry_parsed["answer"],
                                     "citations": retry_parsed.get("citations", []),
@@ -391,11 +459,11 @@ def ask_chat(
                                 },
                                 "validation_errors": [],
                             }
-                        parse_errors = parse_errors + [
-                            "Retry de JSON falhou: " + "; ".join(retry_warnings)
-                        ]
+                        parse_errors.append("Retry de JSON falhou: " + "; ".join(retry_warnings))
                     except Exception as retry_exc:
-                        parse_errors = parse_errors + [f"Retry de JSON falhou: {retry_exc}"]
+                        parse_errors.append(f"Retry de JSON falhou: {retry_exc}")
+                elif should_retry and remaining_budget <= 0:
+                    parse_errors.append("Retry de JSON nao executado: orcamento de tentativas da LLM esgotado")
 
                 all_errors = errors + parse_errors
                 return {**state, "validation_errors": all_errors, "fallback_reason": "; ".join(all_errors)}
