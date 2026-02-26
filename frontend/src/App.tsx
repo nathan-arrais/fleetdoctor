@@ -21,7 +21,7 @@ export default function App() {
           <Route path="reports" element={<Reports />} />
           <Route path="chat" element={<Chat />} />
           <Route path="upload" element={<Upload />} />
-          <Route path="*" element={<div className="text-slate-500">Pagina nao encontrada</div>} />
+          <Route path="*" element={<div className="text-slate-500">Página não encontrada</div>} />
         </Route>
       </Routes>
     </BrowserRouter>

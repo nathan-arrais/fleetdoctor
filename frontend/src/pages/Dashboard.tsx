@@ -72,13 +72,13 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Visao geral</h1>
-        <p className="text-slate-600">Resumo operacional dos ultimos 7 dias.</p>
+        <h1 className="text-2xl font-semibold">Visão geral</h1>
+        <p className="text-slate-600">Resumo operacional dos últimos 7 dias.</p>
       </div>
 
       <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-4">
         <label className="text-sm">
-          Inicio
+          Início
           <input
             type="date"
             value={startDate}
@@ -106,7 +106,7 @@ export default function Dashboard() {
           />
         </label>
         <label className="text-sm">
-          Operacao
+          Operação
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -149,7 +149,7 @@ export default function Dashboard() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-sm text-slate-500">Veiculos ativos</div>
+          <div className="text-sm text-slate-500">Veículos ativos</div>
           <div className="text-2xl font-semibold">{metrics?.active_vehicles ?? "--"}</div>
           <div className="text-xs text-slate-400">Total {metrics?.total_vehicles ?? "--"}</div>
         </div>
@@ -159,7 +159,7 @@ export default function Dashboard() {
           <div className="text-xs text-slate-400">On-time {metrics?.on_time_rate ?? "--"}%</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-sm text-slate-500">Eventos criticos</div>
+          <div className="text-sm text-slate-500">Eventos críticos</div>
           <div className="text-2xl font-semibold">{metrics?.events_critical ?? "--"}</div>
           <div className="text-xs text-slate-400">Total {metrics?.events_total ?? "--"}</div>
         </div>
@@ -186,7 +186,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold">Ocorrencias recentes</div>
+          <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold">Ocorrências recentes</div>
           <ul className="divide-y divide-slate-100">
             {(metrics?.recent_events ?? []).map((event) => (
               <li
@@ -206,4 +206,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

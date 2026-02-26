@@ -129,7 +129,7 @@ class ChatTools:
     def get_vehicle_overview(self, vehicle_id: int) -> dict[str, Any]:
         vehicle = self.db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
         if not vehicle:
-            raise ValueError("Veiculo nao encontrado")
+            raise ValueError("Veículo não encontrado")
 
         events = (
             self.db.query(Event)
@@ -173,7 +173,7 @@ class ChatTools:
     def get_trip_overview(self, trip_id: int) -> dict[str, Any]:
         row = self.db.query(Trip, Vehicle).join(Vehicle, Trip.vehicle_id == Vehicle.id).filter(Trip.id == trip_id).first()
         if not row:
-            raise ValueError("Viagem nao encontrada")
+            raise ValueError("Viagem não encontrada")
         trip, vehicle = row
 
         events = (

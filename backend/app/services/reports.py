@@ -187,11 +187,11 @@ def generate_report_html(
 <body>
   <div class=\"header\">
     <h1>FleetDoctor</h1>
-    <div class=\"subtitle\">Relatorio Operacional (Mock IA)</div>
+    <div class=\"subtitle\">Relatório Operacional (Mock IA)</div>
     <div class=\"subtitle\">Gerado em {datetime.utcnow().isoformat()} UTC</div>
     <div class=\"filters\">
-      <div><strong>Periodo:</strong> {safe_start} - {safe_end}</div>
-      <div><strong>Regiao:</strong> {safe_region}</div>
+      <div><strong>Período:</strong> {safe_start} - {safe_end}</div>
+      <div><strong>Região:</strong> {safe_region}</div>
       <div><strong>Status:</strong> {safe_status}</div>
       <div><strong>Tipo:</strong> {safe_event_type}</div>
       <div><strong>Severidade:</strong> {safe_severity}</div>
@@ -202,7 +202,7 @@ def generate_report_html(
   <h2>KPIs principais</h2>
   <div class=\"kpi-grid\">
     <div class=\"kpi\">
-      <div class=\"label\">Veiculos monitorados</div>
+      <div class=\"label\">Veículos monitorados</div>
       <div class=\"value\">{len(vehicles)}</div>
     </div>
     <div class=\"kpi\">
@@ -210,11 +210,11 @@ def generate_report_html(
       <div class=\"value\">{events_total}</div>
     </div>
     <div class=\"kpi\">
-      <div class=\"label\">Eventos criticos</div>
+      <div class=\"label\">Eventos críticos</div>
       <div class=\"value\">{events_critical}</div>
     </div>
     <div class=\"kpi\">
-      <div class=\"label\">Viagens concluidas</div>
+      <div class=\"label\">Viagens concluídas</div>
       <div class=\"value\">{trips_completed}</div>
     </div>
   </div>
@@ -242,12 +242,12 @@ def generate_report_html(
     </div>
   </div>
 
-  <h2>Top veiculos com eventos</h2>
+  <h2>Top veículos com eventos</h2>
   <table>
     <thead>
       <tr>
-        <th>Veiculo</th>
-        <th>Regiao</th>
+        <th>Veículo</th>
+        <th>Região</th>
         <th>Eventos</th>
       </tr>
     </thead>
@@ -256,12 +256,12 @@ def generate_report_html(
     </tbody>
   </table>
 
-  <h2>Top 5 veiculos criticos</h2>
+  <h2>Top 5 veículos críticos</h2>
   <table>
     <thead>
       <tr>
-        <th>Veiculo</th>
-        <th>Criticos</th>
+        <th>Veículo</th>
+        <th>Críticos</th>
       </tr>
     </thead>
     <tbody>
@@ -269,12 +269,12 @@ def generate_report_html(
     </tbody>
   </table>
 
-  <h2>Top 5 viagens criticas</h2>
+  <h2>Top 5 viagens críticas</h2>
   <table>
     <thead>
       <tr>
         <th>Viagem</th>
-        <th>Criticos</th>
+        <th>Críticos</th>
       </tr>
     </thead>
     <tbody>
@@ -282,18 +282,18 @@ def generate_report_html(
     </tbody>
   </table>
 
-  <h2>Top tipos de ocorrencia</h2>
+  <h2>Top tipos de ocorrência</h2>
   <ul>
     {"".join([f"<li>{safe(t[0])} ({safe(t[1])})</li>" for t in top_types])}
   </ul>
 
-  <h2>Recomendacoes (Mock IA)</h2>
+  <h2>Recomendações (Mock IA)</h2>
   <ul class=\"card recommendations\">
     {"".join([f"<li>{safe(item)}</li>" for item in recommendations])}
   </ul>
 
   <div class=\"footer\">
-    Gerado por regras deterministicas (sem LLM).
+    Gerado por regras determinísticas (sem LLM).
   </div>
 </body>
 </html>
@@ -345,7 +345,7 @@ def _aggregate_recommendations(events: list[Event]) -> list[str]:
         if event.type == "delay":
             actions.append("Revisar rota e ajustar buffers de entrega.")
         elif event.type == "temp_out_of_range":
-            actions.append("Inspecionar sistema de refrigeracao e vedacao.")
+            actions.append("Inspecionar sistema de refrigeração e vedação.")
         elif event.type == "excessive_stops":
             actions.append("Revisar planejamento de paradas e compliance do motorista.")
         elif event.type == "excessive_idle":

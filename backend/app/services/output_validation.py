@@ -14,16 +14,16 @@ def _extract_json_candidate(raw_text: str) -> dict[str, Any]:
         parsed = json.loads(text)
         if isinstance(parsed, dict):
             return parsed
-        raise ValueError("JSON recebido nao e objeto")
+        raise ValueError("JSON recebido não é objeto")
     except json.JSONDecodeError:
         start = text.find("{")
         end = text.rfind("}")
         if start == -1 or end == -1 or end <= start:
-            raise ValueError("Nao foi possivel localizar JSON valido na resposta")
+            raise ValueError("Não foi possível localizar JSON válido na resposta")
         sliced = text[start : end + 1]
         parsed = json.loads(sliced)
         if not isinstance(parsed, dict):
-            raise ValueError("JSON recortado nao e objeto")
+            raise ValueError("JSON recortado não é objeto")
         return parsed
 
 
@@ -48,18 +48,18 @@ def parse_and_validate_diagnosis(raw_text: str, fallback_severity: str = "low") 
 
     severity = str(payload.get("severity", fallback_severity)).strip().lower()
     if severity not in VALID_SEVERITIES:
-        errors.append(f"Severidade invalida retornada pelo modelo: {severity!r}")
+        errors.append(f"Severidade inválida retornada pelo modelo: {severity!r}")
         severity = fallback_severity if fallback_severity in VALID_SEVERITIES else "low"
 
     summary = str(payload.get("summary", "")).strip()
     if not summary:
         errors.append("Campo summary ausente ou vazio")
-        summary = "Diagnostico gerado sem resumo valido."
+        summary = "Diagnóstico gerado sem resumo válido."
 
     probable_causes = _as_str_list(payload.get("probable_causes"))
     if not probable_causes:
         errors.append("Campo probable_causes ausente ou vazio")
-        probable_causes = ["Dados insuficientes para inferencia robusta"]
+        probable_causes = ["Dados insuficientes para inferência robusta"]
 
     recommended_actions = _as_str_list(payload.get("recommended_actions"))
     if not recommended_actions:
@@ -69,7 +69,7 @@ def parse_and_validate_diagnosis(raw_text: str, fallback_severity: str = "low") 
     evidence = _as_str_list(payload.get("evidence"))
     if not evidence:
         errors.append("Campo evidence ausente ou vazio")
-        evidence = ["Nao houve evidencia estruturada retornada pelo modelo"]
+        evidence = ["Não houve evidência estruturada retornada pelo modelo"]
 
     normalized = {
         "severity": severity,

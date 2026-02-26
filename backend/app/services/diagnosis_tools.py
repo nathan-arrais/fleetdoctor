@@ -37,7 +37,7 @@ class DiagnosisTools:
             .first()
         )
         if not row:
-            raise ValueError("Evento nao encontrado para montagem de contexto")
+            raise ValueError("Evento não encontrado para montagem de contexto")
 
         event, vehicle, trip = row
         return {
@@ -68,7 +68,7 @@ class DiagnosisTools:
     def get_trip_context(self, trip_id: int) -> dict[str, Any]:
         row = self.db.query(Trip, Vehicle).join(Vehicle, Trip.vehicle_id == Vehicle.id).filter(Trip.id == trip_id).first()
         if not row:
-            raise ValueError("Viagem nao encontrada para montagem de contexto")
+            raise ValueError("Viagem não encontrada para montagem de contexto")
 
         trip, vehicle = row
         trip_events = (

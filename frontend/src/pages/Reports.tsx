@@ -72,14 +72,14 @@ export default function Reports() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Relatorios</h1>
-        <p className="text-slate-600">Gere um relatorio executivo com resumo operacional.</p>
+        <h1 className="text-2xl font-semibold">Relatórios</h1>
+        <p className="text-slate-600">Gere um relatório executivo com resumo operacional.</p>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="grid gap-4 md:grid-cols-4">
           <label className="text-sm">
-            Inicio
+            Início
             <input
               type="date"
               value={start}
@@ -107,7 +107,7 @@ export default function Reports() {
             />
           </label>
           <label className="text-sm">
-            Operacao
+            Operação
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
@@ -142,7 +142,7 @@ export default function Reports() {
             >
               <option value="">Todas</option>
               <option value="low">Baixa</option>
-              <option value="medium">Media</option>
+              <option value="medium">Média</option>
               <option value="high">Alta</option>
               <option value="critical">Critica</option>
             </select>
@@ -163,24 +163,24 @@ export default function Reports() {
           disabled={generating}
           className="mt-4 rounded-full bg-slate-900 px-4 py-2 text-sm text-white"
         >
-          {generating ? "Gerando..." : "Gerar relatorio"}
+          {generating ? "Gerando..." : "Gerar relatório"}
         </button>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold">Relatorios gerados</div>
+        <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold">Relatórios gerados</div>
         {loading ? (
           <div className="px-4 py-6 text-sm text-slate-500">Carregando...</div>
         ) : reports.length === 0 ? (
           <div className="px-4 py-6 text-sm text-slate-500">
-            Nenhum relatorio gerado. Use os filtros acima e clique em "Gerar relatorio".
+            Nenhum relatório gerado. Use os filtros acima e clique em "Gerar relatório".
           </div>
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-4 py-3">Criado</th>
-                <th className="px-4 py-3">Periodo</th>
+                <th className="px-4 py-3">Período</th>
                 <th className="px-4 py-3">Filtros</th>
                 <th className="px-4 py-3">Acoes</th>
               </tr>
@@ -220,4 +220,3 @@ export default function Reports() {
     </div>
   );
 }
-

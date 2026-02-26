@@ -51,7 +51,7 @@ export default function TripPage() {
 
       <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-3">
         <div>
-          <div className="text-xs uppercase text-slate-400">Veiculo</div>
+          <div className="text-xs uppercase text-slate-400">Veículo</div>
           <div className="text-sm font-semibold">#{trip.vehicle_id}</div>
         </div>
         <div>
@@ -67,15 +67,15 @@ export default function TripPage() {
           <div className="text-sm font-semibold">{trip.distance_km} km</div>
         </div>
         <div>
-          <div className="text-xs uppercase text-slate-400">Duracao planejada</div>
+          <div className="text-xs uppercase text-slate-400">Duração planejada</div>
           <div className="text-sm font-semibold">{trip.planned_duration_min} min</div>
         </div>
         <div>
-          <div className="text-xs uppercase text-slate-400">Duracao real</div>
+          <div className="text-xs uppercase text-slate-400">Duração real</div>
           <div className="text-sm font-semibold">{trip.actual_duration_min} min</div>
         </div>
         <div>
-          <div className="text-xs uppercase text-slate-400">Temperatura media</div>
+          <div className="text-xs uppercase text-slate-400">Temperatura média</div>
           <div className="text-sm font-semibold">{trip.avg_temp_c} °C</div>
         </div>
       </div>

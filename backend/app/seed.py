@@ -193,7 +193,7 @@ def seed():
     db.add_all(events)
     db.commit()
     db.close()
-    print(f"Seed concluído: {len(vehicles)} veiculos, {len(trips)} viagens, {len(events)} eventos")
+    print(f"Seed concluído: {len(vehicles)} veículos, {len(trips)} viagens, {len(events)} eventos")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-Analise o contexto abaixo e gere um diagnostico operacional.
+Analise o contexto abaixo e gere um diagnóstico operacional.
 
 Contexto principal do evento:
 {event_context_json}
@@ -6,13 +6,13 @@ Contexto principal do evento:
 Eventos similares recentes:
 {similar_events_json}
 
-Historico recente do veiculo:
+Histórico recente do veículo:
 {vehicle_history_json}
 
-Instrucoes:
+Instruções:
 - Considere apenas os dados fornecidos.
-- Indique causas provaveis para o evento.
-- Recomende acoes operacionais concretas.
-- Cite evidencias baseadas nos campos recebidos.
+- Indique causas prováveis para o evento.
+- Recomende ações operacionais concretas.
+- Cite evidências baseadas nos campos recebidos.
 
 Retorne somente JSON no formato exigido.

@@ -151,8 +151,8 @@ export default function Triage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Triagem de ocorrencias</h1>
-        <p className="text-slate-600">Filtre, priorize e visualize diagnosticos.</p>
+        <h1 className="text-2xl font-semibold">Triagem de ocorrências</h1>
+        <p className="text-slate-600">Filtre, priorize e visualize diagnósticos.</p>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -195,7 +195,7 @@ export default function Triage() {
 
         <div className="grid gap-4 md:grid-cols-6">
           <label className="text-sm">
-            Inicio
+            Início
             <input
               type="date"
               value={start}
@@ -247,7 +247,7 @@ export default function Triage() {
             >
               <option value="">Todas</option>
               <option value="low">Baixa</option>
-              <option value="medium">Media</option>
+              <option value="medium">Média</option>
               <option value="high">Alta</option>
               <option value="critical">Critica</option>
             </select>
@@ -266,7 +266,7 @@ export default function Triage() {
             />
           </label>
           <label className="text-sm">
-            Operacao
+            Operação
             <select
               value={status}
               onChange={(e) => {
@@ -289,7 +289,7 @@ export default function Triage() {
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
               <th className="w-[140px] px-4 py-3">Data/Hora</th>
-              <th className="w-[120px] px-4 py-3">Veiculo</th>
+              <th className="w-[120px] px-4 py-3">Veículo</th>
               <th className="w-[110px] px-4 py-3">Viagem</th>
               <th className="w-[140px] px-4 py-3">Tipo</th>
               <th className="w-[110px] px-4 py-3">Severidade</th>
@@ -354,7 +354,7 @@ export default function Triage() {
             Mostrando {startIndex}–{endIndex} de {total}
           </div>
           <div>
-            Pagina {data?.page ?? 1} de {data?.pages ?? 1}
+            Página {data?.page ?? 1} de {data?.pages ?? 1}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -437,7 +437,7 @@ export default function Triage() {
                 className="rounded-full border border-slate-200 px-3 py-1 text-xs"
                 onClick={() => navigate(`/vehicle/${selected.vehicle_id}`)}
               >
-                Abrir veiculo
+                Abrir veículo
               </button>
               <button
                 className="rounded-full border border-slate-200 px-3 py-1 text-xs"
@@ -450,7 +450,7 @@ export default function Triage() {
 
             <div className="mt-6">
               <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-semibold text-slate-800">Diagnostico IA</div>
+                <div className="text-sm font-semibold text-slate-800">Diagnóstico IA</div>
                 {diagnosis?.source ? (
                   <span
                     className={`rounded-full px-2 py-1 text-xs font-semibold ${
@@ -459,7 +459,7 @@ export default function Triage() {
                         : "bg-amber-100 text-amber-800"
                     }`}
                   >
-                    {diagnosis.source === "llm" ? "LLM local" : "Fallback deterministico"}
+                    {diagnosis.source === "llm" ? "LLM local" : "Fallback determinístico"}
                   </span>
                 ) : null}
               </div>
@@ -476,7 +476,7 @@ export default function Triage() {
                     <p className="mt-1 text-sm leading-6">{diagnosis.summary}</p>
                   </div>
                   <div>
-                    <div className="text-xs uppercase text-slate-400">Causas provaveis</div>
+                    <div className="text-xs uppercase text-slate-400">Causas prováveis</div>
                     <ul className="mt-1 list-disc pl-4">
                       {diagnosis.probable_causes.map((item) => (
                         <li key={item}>{item}</li>
@@ -507,7 +507,7 @@ export default function Triage() {
                   ) : null}
                 </div>
               ) : (
-                <div className="mt-2 text-sm text-slate-500">Carregando diagnostico...</div>
+                <div className="mt-2 text-sm text-slate-500">Carregando diagnóstico...</div>
               )}
             </div>
           </div>

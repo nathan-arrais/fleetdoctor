@@ -15,11 +15,11 @@ from .output_validation import parse_and_validate_chat_response
 
 
 PROMPTS_DIR = Path(__file__).resolve().parents[3] / "prompts"
-CHAT_MAX_LLM_ATTEMPTS = 2
+CHAT_MAX_LLM_ATTEMPTS = 3
 CHAT_JSON_RETRY_HINT = (
-    "\n\nIMPORTANTE: responda SOMENTE com JSON valido no formato "
+    "\n\nIMPORTANTE: responda SOMENTE com JSON válido no formato "
     '{"answer":"...","citations":["..."],"follow_up_questions":["..."]}. '
-    "Nao inclua markdown nem texto fora do JSON."
+    "Não inclua markdown nem texto fora do JSON."
 )
 
 
@@ -31,7 +31,7 @@ def _now_utc() -> datetime:
 def _load_prompt(name: str) -> str:
     path = PROMPTS_DIR / name
     if not path.exists():
-        raise FileNotFoundError(f"Prompt nao encontrado: {path}")
+        raise FileNotFoundError(f"Prompt não encontrado: {path}")
     return path.read_text(encoding="utf-8")
 
 
@@ -93,7 +93,7 @@ def list_chat_sessions(db: Session, limit: int = 50) -> list[ChatSession]:
 def get_chat_session_messages(db: Session, session_id: int, limit: int = 100) -> list[dict[str, Any]]:
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not session:
-        raise ValueError("Sessao de chat nao encontrada")
+        raise ValueError("Sessão de chat não encontrada")
     safe_limit = max(1, min(limit, 500))
     rows = (
         db.query(ChatMessage)
@@ -108,22 +108,22 @@ def get_chat_session_messages(db: Session, session_id: int, limit: int = 100) ->
 
 def _infer_intent(question: str) -> str:
     text = question.lower()
-    if any(token in text for token in ["dashboard", "kpi", "indicador", "visao geral", "resumo"]):
+    if any(token in text for token in ["dashboard", "kpi", "indicador", "visão geral", "visao geral", "resumo"]):
         return "dashboard"
-    if any(token in text for token in ["triagem", "evento", "ocorrencia", "ocorrência", "alerta"]):
+    if any(token in text for token in ["triagem", "evento", "ocorrência", "ocorrencia", "alerta"]):
         return "triage"
-    if any(token in text for token in ["veiculo", "veículo", "placa", "odometro", "odômetro"]):
+    if any(token in text for token in ["veículo", "veiculo", "placa", "odômetro", "odometro"]):
         return "vehicle"
     if any(token in text for token in ["viagem", "trip", "rota", "motorista"]):
         return "trip"
-    if any(token in text for token in ["risco", "critico", "crítico", "severidade"]):
+    if any(token in text for token in ["risco", "crítico", "critico", "severidade"]):
         return "risks"
     return "general"
 
 
 def _extract_ids(question: str) -> dict[str, int]:
     extracted: dict[str, int] = {}
-    vehicle_match = re.search(r"(veiculo|veículo|vehicle)\s*#?\s*(\d+)", question, flags=re.IGNORECASE)
+    vehicle_match = re.search(r"(veículo|veiculo|vehicle)\s*#?\s*(\d+)", question, flags=re.IGNORECASE)
     trip_match = re.search(r"(viagem|trip)\s*#?\s*(\d+)", question, flags=re.IGNORECASE)
     if vehicle_match:
         extracted["vehicle_id"] = int(vehicle_match.group(2))
@@ -151,13 +151,13 @@ def _collect_tool_results(tools: ChatTools, intent: str, ids: dict[str, int], qu
     if intent == "vehicle":
         vehicle_id = ids.get("vehicle_id")
         if vehicle_id is None:
-            tool_warnings.append("Nao foi possivel extrair vehicle_id da pergunta")
+            tool_warnings.append("Não foi possível extrair vehicle_id da pergunta")
         else:
             call("get_vehicle_overview", tools.get_vehicle_overview, vehicle_id)
     if intent == "trip":
         trip_id = ids.get("trip_id")
         if trip_id is None:
-            tool_warnings.append("Nao foi possivel extrair trip_id da pergunta")
+            tool_warnings.append("Não foi possível extrair trip_id da pergunta")
         else:
             call("get_trip_overview", tools.get_trip_overview, trip_id)
 
@@ -211,8 +211,8 @@ def _build_fallback_answer(intent: str, question: str, tool_results: dict[str, A
         lines.append(
             "Resumo atual: "
             f"{kpis.get('events_total', 0)} eventos, "
-            f"{kpis.get('events_critical', 0)} criticos, "
-            f"{kpis.get('active_vehicles', 0)} veiculos ativos."
+            f"{kpis.get('events_critical', 0)} críticos, "
+            f"{kpis.get('active_vehicles', 0)} veículos ativos."
         )
     if "get_top_risks" in tool_results:
         citations.append("get_top_risks")
@@ -224,7 +224,7 @@ def _build_fallback_answer(intent: str, question: str, tool_results: dict[str, A
         citations.append("get_vehicle_overview")
         vehicle = tool_results["get_vehicle_overview"].get("vehicle", {})
         lines.append(
-            f"Veiculo analisado: {vehicle.get('code')} ({vehicle.get('plate')}), "
+            f"Veículo analisado: {vehicle.get('code')} ({vehicle.get('plate')}), "
             f"status {vehicle.get('status')}."
         )
     if "get_trip_overview" in tool_results:
@@ -240,20 +240,20 @@ def _build_fallback_answer(intent: str, question: str, tool_results: dict[str, A
         lines.append(f"Busca de triagem retornou {event_count} eventos relevantes para a pergunta.")
 
     if not lines:
-        lines.append("Nao consegui consolidar dados suficientes para responder com precisao nesta consulta.")
+        lines.append("Não consegui consolidar dados suficientes para responder com precisão nesta consulta.")
 
     if warnings:
-        lines.append("Observacao: houve limitacoes na coleta de contexto para esta resposta.")
+        lines.append("Observação: houve limitações na coleta de contexto para esta resposta.")
 
-    has_vehicle_id = re.search(r"(veiculo|veículo|vehicle)\s*#?\s*(\d+)", question, flags=re.IGNORECASE) is not None
+    has_vehicle_id = re.search(r"(veículo|veiculo|vehicle)\s*#?\s*(\d+)", question, flags=re.IGNORECASE) is not None
     has_trip_id = re.search(r"(viagem|trip)\s*#?\s*(\d+)", question, flags=re.IGNORECASE) is not None
 
     if intent == "vehicle" and not has_vehicle_id:
-        follow_up = ["Informe o ID do veiculo no formato: veiculo 12."]
+        follow_up = ["Informe o ID do veículo no formato: veículo 12."]
     elif intent == "trip" and not has_trip_id:
         follow_up = ["Informe o ID da viagem no formato: viagem 8."]
     else:
-        follow_up = ["Quer que eu detalhe por severidade ou por regiao?"]
+        follow_up = ["Quer que eu detalhe por severidade ou por região?"]
 
     return {
         "answer": " ".join(lines),
@@ -276,7 +276,7 @@ def ask_chat(
 
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not session:
-        raise ValueError("Sessao de chat nao encontrada")
+        raise ValueError("Sessão de chat não encontrada")
 
     now = _now_utc()
     user_message = ChatMessage(
@@ -310,7 +310,7 @@ def ask_chat(
             "model": None,
             "latency_ms": None,
             "used_tools": used_tools,
-            "fallback_reason": "Execucao forcada no motor deterministico",
+            "fallback_reason": "Execução forçada no motor determinístico",
             "validation_warnings": tool_warnings,
         }
     else:
@@ -359,6 +359,7 @@ def ask_chat(
             attempts_used = int(state.get("llm_attempts_used", 0))
             attempted_models = list(state.get("llm_attempted_models", []))
             attempt_error_messages: list[str] = []
+            timeout_retry_models: set[str] = set()
 
             while attempts_used < CHAT_MAX_LLM_ATTEMPTS:
                 next_model = _pick_next_model(settings, attempted_models)
@@ -393,6 +394,11 @@ def ask_chat(
                     attempts_used += max(1, len(attempts))
                     for attempt in attempts:
                         model_name = str(attempt.get("model") or "")
+                        error_type = str(attempt.get("error_type") or "")
+                        # Timeout no primeiro uso costuma ser cold start; fazemos 1 retry no mesmo modelo.
+                        if error_type == "timeout" and model_name and model_name not in timeout_retry_models:
+                            timeout_retry_models.add(model_name)
+                            continue
                         if model_name and model_name not in attempted_models:
                             attempted_models.append(model_name)
                     attempt_error_messages.append(str(exc))
@@ -401,7 +407,7 @@ def ask_chat(
                     attempt_error_messages.append(str(exc))
 
             if not attempt_error_messages:
-                attempt_error_messages = ["Orcamento de tentativas da LLM esgotado"]
+                attempt_error_messages = ["Orçamento de tentativas da LLM esgotado"]
             last_error = " | ".join(attempt_error_messages)
             all_errors = existing_errors + attempt_error_messages
             return {
@@ -467,7 +473,7 @@ def ask_chat(
                     except Exception as retry_exc:
                         parse_errors.append(f"Retry de JSON falhou: {retry_exc}")
                 elif should_retry and remaining_budget <= 0:
-                    parse_errors.append("Retry de JSON nao executado: orcamento de tentativas da LLM esgotado")
+                    parse_errors.append("Retry de JSON não executado: orçamento de tentativas da LLM esgotado")
 
                 all_errors = errors + parse_errors
                 return {**state, "validation_errors": all_errors, "fallback_reason": "; ".join(all_errors)}
@@ -517,7 +523,7 @@ def ask_chat(
         answer_payload = result.get("answer_payload")
         if not answer_payload:
             answer_payload = {
-                "answer": "Nao foi possivel gerar resposta para esta pergunta.",
+                "answer": "Não foi possível gerar resposta para esta pergunta.",
                 "citations": [],
                 "follow_up_questions": ["Pode reformular a pergunta com mais contexto?"],
                 "source": "deterministic_fallback",

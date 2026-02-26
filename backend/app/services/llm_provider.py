@@ -57,7 +57,7 @@ class LLMSettings:
 
 def build_chat_llm_settings(base_settings: LLMSettings | None = None) -> LLMSettings:
     base = base_settings or LLMSettings()
-    chat_timeout = int(os.getenv("LLM_CHAT_TIMEOUT_MS", "90000"))
+    chat_timeout = int(os.getenv("LLM_CHAT_TIMEOUT_MS", "120000"))
     return LLMSettings(
         provider=base.provider,
         ollama_base_url=base.ollama_base_url,
@@ -255,10 +255,11 @@ class OllamaProvider:
             attempts=attempts,
         )
 
-    def warmup(self) -> dict[str, Any]:
+    def warmup(self, models: Iterable[str] | None = None) -> dict[str, Any]:
         global _last_warmup_report
 
         started_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        warmup_models = _dedupe(list(models)) if models is not None else self._models()
         if not self.settings.warmup_on_startup:
             report = {
                 "started_at": started_at,
@@ -266,6 +267,7 @@ class OllamaProvider:
                 "enabled": False,
                 "skipped": True,
                 "reason": "Warmup desabilitado por configuracao",
+                "models": warmup_models,
                 "results": [],
             }
             _last_warmup_report = report
@@ -278,6 +280,7 @@ class OllamaProvider:
                 "enabled": True,
                 "skipped": True,
                 "reason": "LLM_FORCE_DETERMINISTIC habilitado",
+                "models": warmup_models,
                 "results": [],
             }
             _last_warmup_report = report
@@ -285,7 +288,7 @@ class OllamaProvider:
 
         base = self.settings.ollama_base_url.rstrip("/")
         results: list[dict[str, Any]] = []
-        for model in self._models():
+        for model in warmup_models:
             request_started = time.perf_counter()
             try:
                 payload = {
@@ -319,6 +322,7 @@ class OllamaProvider:
             "enabled": True,
             "skipped": False,
             "reason": None,
+            "models": warmup_models,
             "results": results,
         }
         _last_warmup_report = report

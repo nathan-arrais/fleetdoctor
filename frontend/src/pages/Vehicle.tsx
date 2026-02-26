@@ -33,13 +33,13 @@ export default function VehiclePage() {
   }, [vehicle_id]);
 
   if (!vehicle) {
-    return <div className="text-slate-500">Carregando veiculo...</div>;
+    return <div className="text-slate-500">Carregando veículo...</div>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Veiculo #{vehicle.id}</h1>
+        <h1 className="text-2xl font-semibold">Veículo #{vehicle.id}</h1>
         <p className="text-slate-600">{vehicle.code} • {vehicle.plate}</p>
       </div>
 
@@ -49,7 +49,7 @@ export default function VehiclePage() {
           <div className="text-sm font-semibold">{vehicle.type}</div>
         </div>
         <div>
-          <div className="text-xs uppercase text-slate-400">Regiao</div>
+          <div className="text-xs uppercase text-slate-400">Região</div>
           <div className="text-sm font-semibold">{vehicle.region}</div>
         </div>
         <div>

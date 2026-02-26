@@ -22,7 +22,7 @@ def llm_health():
                 "retry_json_invalid": chat_settings.retry_json_invalid,
                 "disable_thinking": chat_settings.disable_thinking,
             },
-            "error": "Provider nao suportado nesta versao",
+            "error": "Provider não suportado nesta versão",
         }
     return OllamaProvider(settings).health(
         extra={

@@ -16,10 +16,10 @@ from .output_validation import parse_and_validate_diagnosis
 PROMPTS_DIR = Path(__file__).resolve().parents[3] / "prompts"
 DIAGNOSIS_MAX_LLM_ATTEMPTS = 3
 DIAGNOSIS_JSON_RETRY_HINT = (
-    "\n\nIMPORTANTE: responda SOMENTE com JSON valido no formato "
+    "\n\nIMPORTANTE: responda SOMENTE com JSON válido no formato "
     '{"severity":"low|medium|high|critical","summary":"...","probable_causes":["..."],'
     '"recommended_actions":["..."],"evidence":["..."]}. '
-    "Nao inclua markdown nem texto fora do JSON."
+    "Não inclua markdown nem texto fora do JSON."
 )
 
 
@@ -27,7 +27,7 @@ DIAGNOSIS_JSON_RETRY_HINT = (
 def _load_prompt(name: str) -> str:
     path = PROMPTS_DIR / name
     if not path.exists():
-        raise FileNotFoundError(f"Prompt nao encontrado: {path}")
+        raise FileNotFoundError(f"Prompt não encontrado: {path}")
     return path.read_text(encoding="utf-8")
 
 
@@ -100,7 +100,7 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
             diagnosis,
             source="deterministic_fallback",
             used_tools=[],
-            fallback_reason="Execucao forcada no motor deterministico",
+            fallback_reason="Execução forçada no motor determinístico",
         )
 
     def prepare_context(state: DiagnosisGraphState) -> DiagnosisGraphState:
@@ -180,7 +180,7 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
                 attempt_error_messages.append(str(exc))
 
         if not attempt_error_messages:
-            attempt_error_messages = ["Orcamento de tentativas da LLM esgotado"]
+            attempt_error_messages = ["Orçamento de tentativas da LLM esgotado"]
         last_error = " | ".join(attempt_error_messages)
         all_errors = existing_errors + attempt_error_messages
         return {
@@ -202,7 +202,7 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
         remaining_budget = DIAGNOSIS_MAX_LLM_ATTEMPTS - attempts_used
         if parsed is None and max(settings.retry_json_invalid, 0) > 0 and _should_retry_diagnosis_output(errors):
             if remaining_budget <= 0:
-                errors = errors + ["Retry de JSON nao executado: orcamento de tentativas da LLM esgotado"]
+                errors = errors + ["Retry de JSON não executado: orçamento de tentativas da LLM esgotado"]
             else:
                 retry_prompt = state.get("user_prompt", "") + DIAGNOSIS_JSON_RETRY_HINT
                 preferred_retry_model = state.get("llm_model")
@@ -225,7 +225,7 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
                         fallback_severity=fallback_severity,
                     )
                     if retry_parsed is not None:
-                        retry_note = "Retry de JSON aplicado apos falha inicial: " + "; ".join(errors)
+                        retry_note = "Retry de JSON aplicado após falha inicial: " + "; ".join(errors)
                         return {
                             **state,
                             "llm_text": retry_result.get("text", ""),
@@ -271,7 +271,7 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
                 model=state.get("llm_model"),
                 latency_ms=state.get("llm_latency_ms"),
                 used_tools=state.get("used_tools"),
-                fallback_reason=state.get("fallback_reason") or "Fallback acionado por validacao",
+                fallback_reason=state.get("fallback_reason") or "Fallback acionado por validação",
                 validation_warnings=state.get("validation_errors", []),
             ),
             "source": "deterministic_fallback",
@@ -292,7 +292,7 @@ def diagnose_event_with_engine(db: Session, event: Event, *, debug: bool = False
             fallback,
             source="deterministic_fallback",
             used_tools=[],
-            fallback_reason="Fallback final por ausencia de diagnostico no grafo",
+            fallback_reason="Fallback final por ausência de diagnóstico no grafo",
         )
 
     if not debug:
@@ -314,7 +314,7 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
             diagnosis,
             source="deterministic_fallback",
             used_tools=[],
-            fallback_reason="Execucao forcada no motor deterministico",
+            fallback_reason="Execução forçada no motor determinístico",
         )
 
     def prepare_context(state: DiagnosisGraphState) -> DiagnosisGraphState:
@@ -397,7 +397,7 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
                 attempt_error_messages.append(str(exc))
 
         if not attempt_error_messages:
-            attempt_error_messages = ["Orcamento de tentativas da LLM esgotado"]
+            attempt_error_messages = ["Orçamento de tentativas da LLM esgotado"]
         last_error = " | ".join(attempt_error_messages)
         all_errors = existing_errors + attempt_error_messages
         return {
@@ -418,7 +418,7 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
         remaining_budget = DIAGNOSIS_MAX_LLM_ATTEMPTS - attempts_used
         if parsed is None and max(settings.retry_json_invalid, 0) > 0 and _should_retry_diagnosis_output(errors):
             if remaining_budget <= 0:
-                errors = errors + ["Retry de JSON nao executado: orcamento de tentativas da LLM esgotado"]
+                errors = errors + ["Retry de JSON não executado: orçamento de tentativas da LLM esgotado"]
             else:
                 retry_prompt = state.get("user_prompt", "") + DIAGNOSIS_JSON_RETRY_HINT
                 preferred_retry_model = state.get("llm_model")
@@ -441,7 +441,7 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
                         fallback_severity=fallback_severity,
                     )
                     if retry_parsed is not None:
-                        retry_note = "Retry de JSON aplicado apos falha inicial: " + "; ".join(errors)
+                        retry_note = "Retry de JSON aplicado após falha inicial: " + "; ".join(errors)
                         return {
                             **state,
                             "llm_text": retry_result.get("text", ""),
@@ -487,7 +487,7 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
                 model=state.get("llm_model"),
                 latency_ms=state.get("llm_latency_ms"),
                 used_tools=state.get("used_tools"),
-                fallback_reason=state.get("fallback_reason") or "Fallback acionado por validacao",
+                fallback_reason=state.get("fallback_reason") or "Fallback acionado por validação",
                 validation_warnings=state.get("validation_errors", []),
             ),
             "source": "deterministic_fallback",
@@ -508,7 +508,7 @@ def diagnose_trip_with_engine(db: Session, trip: Trip, *, debug: bool = False, f
             fallback,
             source="deterministic_fallback",
             used_tools=[],
-            fallback_reason="Fallback final por ausencia de diagnostico no grafo",
+            fallback_reason="Fallback final por ausência de diagnóstico no grafo",
         )
 
     if not debug:

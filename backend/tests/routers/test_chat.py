@@ -1,9 +1,9 @@
 def test_chat_session_and_ask_flow(client):
-    create_response = client.post("/api/chat/sessions", json={"title": "Sessao teste"})
+    create_response = client.post("/api/chat/sessions", json={"title": "Sessão teste"})
     assert create_response.status_code == 200
     session = create_response.json()
     session_id = session["id"]
-    assert session["title"] == "Sessao teste"
+    assert session["title"] == "Sessão teste"
 
     sessions_response = client.get("/api/chat/sessions")
     assert sessions_response.status_code == 200
@@ -43,7 +43,7 @@ def test_chat_ask_sessao_inexistente(client):
         "/api/chat/ask",
         json={
             "session_id": 999999,
-            "message": "Teste de sessao invalida",
+            "message": "Teste de sessão inválida",
         },
     )
     assert response.status_code == 404

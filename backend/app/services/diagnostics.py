@@ -17,7 +17,7 @@ def diagnose_event(event: Event) -> dict:
         summary = "Atraso acima do esperado no trajeto."
         probable_causes = [
             "Congestionamento na rota",
-            "Paradas nao planejadas",
+            "Paradas não planejadas",
             "Desvio de rota",
         ]
         recommended_actions = [
@@ -32,13 +32,13 @@ def diagnose_event(event: Event) -> dict:
     elif event.type == "temp_out_of_range":
         summary = "Temperatura fora da faixa operacional."
         probable_causes = [
-            "Falha no sistema de refrigeracao",
+            "Falha no sistema de refrigeração",
             "Abertura frequente de portas",
-            "Calibracao incorreta do sensor",
+            "Calibração incorreta do sensor",
         ]
         recommended_actions = [
-            "Verificar unidade de refrigeracao",
-            "Inspecionar vedacao das portas",
+            "Verificar unidade de refrigeração",
+            "Inspecionar vedação das portas",
             "Recalibrar sensor de temperatura",
         ]
         if event.value is not None and event.threshold is not None:
@@ -46,11 +46,11 @@ def diagnose_event(event: Event) -> dict:
                 f"Temperatura registrada {event.value:.1f} C (limite {event.threshold:.1f} C)."
             )
     elif event.type == "excessive_stops":
-        summary = "Numero de paradas acima do planejado."
+        summary = "Número de paradas acima do planejado."
         probable_causes = [
             "Rotas com muitos checkpoints",
             "Pausas prolongadas de motorista",
-            "Interferencias de trafego",
+            "Interferências de tráfego",
         ]
         recommended_actions = [
             "Revisar planejamento de paradas",
@@ -65,7 +65,7 @@ def diagnose_event(event: Event) -> dict:
         summary = "Tempo parado elevado durante a viagem."
         probable_causes = [
             "Espera em docas",
-            "Pausas nao planejadas",
+            "Pausas não planejadas",
             "Falhas operacionais locais",
         ]
         recommended_actions = [
@@ -79,7 +79,7 @@ def diagnose_event(event: Event) -> dict:
             )
     else:
         summary = "Evento operacional detectado."
-        probable_causes = ["Variacao operacional", "Comunicacao incompleta"]
+        probable_causes = ["Variação operacional", "Comunicação incompleta"]
         recommended_actions = ["Validar dados da telemetria"]
 
     if not evidence:
@@ -100,26 +100,26 @@ def diagnose_trip(session: Session, trip: Trip) -> dict:
         return {
             "severity": "low",
             "summary": "Viagem sem eventos relevantes.",
-            "probable_causes": ["Operacao dentro do padrao"],
+            "probable_causes": ["Operação dentro do padrão"],
             "recommended_actions": ["Manter monitoramento"],
             "evidence": ["Nenhum evento associado."],
         }
 
     top_sev = max(events, key=lambda e: _severity_rank(e.severity)).severity
     types = {e.type for e in events}
-    summary = "Multiplos eventos detectados na viagem." if len(types) > 1 else "Evento recorrente na viagem."
+    summary = "Múltiplos eventos detectados na viagem." if len(types) > 1 else "Evento recorrente na viagem."
 
     evidence = [f"Total de eventos: {len(events)}."]
     evidence.extend([f"Tipo detectado: {t}." for t in sorted(types)])
 
     probable_causes = [
-        "Variacao de trafego e janelas de entrega",
-        "Condicoes de rota inconsistentes",
+        "Variação de tráfego e janelas de entrega",
+        "Condições de rota inconsistentes",
     ]
 
     recommended_actions = [
         "Revisar plano de rota e buffers",
-        "Agendar revisao preventiva",
+        "Agendar revisão preventiva",
     ]
 
     return {

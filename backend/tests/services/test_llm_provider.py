@@ -121,7 +121,7 @@ def test_build_chat_settings_aplica_defaults(monkeypatch):
 
     assert chat_settings.primary_model == "qwen3:4b"
     assert chat_settings.fallback_model == "qwen2.5:7b"
-    assert chat_settings.timeout_ms == 90000
+    assert chat_settings.timeout_ms == 120000
     assert chat_settings.max_tokens == 220
     assert chat_settings.retry_json_invalid == 1
     assert chat_settings.disable_thinking is True

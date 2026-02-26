@@ -69,7 +69,7 @@ export default function Upload() {
       });
       if (!res.ok) {
         const msg = await res.text();
-        throw new Error(msg || "Falha na importacao");
+        throw new Error(msg || "Falha na importação");
       }
       const data = await res.json();
       setSuccess(`Importado com sucesso: ${data.imported} eventos.`);
@@ -139,7 +139,7 @@ export default function Upload() {
 
       {preview && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-sm font-semibold">Validacao de colunas</div>
+          <div className="text-sm font-semibold">Validação de colunas</div>
           <ul className="mt-2 text-sm">
             {requiredColumns.map((col) => (
               <li key={col} className={preview.columns.includes(col) ? "text-emerald-600" : "text-rose-600"}>

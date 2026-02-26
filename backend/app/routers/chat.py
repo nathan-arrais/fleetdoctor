@@ -50,6 +50,7 @@ def ask_chat_route(payload: ChatAskRequest, db: Session = Depends(get_db)):
             force_deterministic=payload.force_deterministic,
         )
     except ValueError as exc:
-        status_code = 404 if "nao encontrada" in str(exc).lower() else 400
+        detail = str(exc).lower()
+        status_code = 404 if "não encontrada" in detail or "nao encontrada" in detail else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return ChatAskResponse(**result)

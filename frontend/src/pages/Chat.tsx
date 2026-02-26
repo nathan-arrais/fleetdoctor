@@ -82,7 +82,7 @@ export default function Chat() {
         setActiveSessionId(created.id);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar sessoes");
+      setError(err instanceof Error ? err.message : "Falha ao carregar sessões");
     } finally {
       setLoadingSessions(false);
     }
@@ -111,7 +111,7 @@ export default function Chat() {
       setMessages([]);
       setDraft("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao criar sessao");
+      setError(err instanceof Error ? err.message : "Falha ao criar sessão");
     }
   }
 
@@ -128,7 +128,7 @@ export default function Chat() {
         sessionId = created.id;
         setActiveSessionId(created.id);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Falha ao criar sessao");
+        setError(err instanceof Error ? err.message : "Falha ao criar sessão");
         return;
       }
     }
@@ -167,7 +167,7 @@ export default function Chat() {
         <div className="mb-3 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold">Chat da frota</h1>
-            <p className="text-xs text-slate-500">Perguntas sobre KPI, triagem, veiculos e viagens.</p>
+            <p className="text-xs text-slate-500">Perguntas sobre KPI, triagem, veículos e viagens.</p>
           </div>
           <button
             onClick={createSession}
@@ -178,7 +178,7 @@ export default function Chat() {
         </div>
         <div className="space-y-2">
           {loadingSessions ? (
-            <div className="text-sm text-slate-500">Carregando sessoes...</div>
+            <div className="text-sm text-slate-500">Carregando sessões...</div>
           ) : (
             sessions.map((session) => (
               <button
@@ -203,7 +203,7 @@ export default function Chat() {
       <section className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-4 py-3">
           <div className="text-sm font-semibold text-slate-800">{activeSession?.title ?? "Conversa"}</div>
-          <div className="text-xs text-slate-500">Agente com LLM local + fallback deterministico</div>
+          <div className="text-xs text-slate-500">Agente com LLM local + fallback determinístico</div>
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
@@ -213,8 +213,8 @@ export default function Chat() {
               Pergunte algo como:
               <div className="mt-2 space-y-1 text-xs">
                 <div>- "Quais os principais riscos da semana?"</div>
-                <div>- "Resumo do dashboard dos ultimos 7 dias"</div>
-                <div>- "Analise o veiculo 3"</div>
+                <div>- "Resumo do dashboard dos últimos 7 dias"</div>
+                <div>- "Analise o veículo 3"</div>
                 <div>- "Como foi a viagem 12?"</div>
               </div>
             </div>
@@ -247,10 +247,10 @@ export default function Chat() {
                           </span>
                         ) : null}
                         {message.model ? <span>Modelo: {message.model}</span> : null}
-                        {message.latency_ms ? <span>Latencia: {message.latency_ms} ms</span> : null}
+                        {message.latency_ms ? <span>Latência: {message.latency_ms} ms</span> : null}
                       </div>
                       {message.used_tools.length > 0 ? <div>Tools: {message.used_tools.join(", ")}</div> : null}
-                      {message.citations.length > 0 ? <div>Citacoes: {message.citations.join(", ")}</div> : null}
+                      {message.citations.length > 0 ? <div>Citações: {message.citations.join(", ")}</div> : null}
                       {message.validation_warnings.length > 0 ? (
                         <div className="text-amber-700">
                           Avisos: {message.validation_warnings.join(" | ")}
@@ -258,7 +258,7 @@ export default function Chat() {
                       ) : null}
                       {message.follow_up_questions.length > 0 ? (
                         <div className="space-y-1">
-                          <div className="font-semibold text-slate-700">Sugestoes:</div>
+                          <div className="font-semibold text-slate-700">Sugestões:</div>
                           {message.follow_up_questions.map((question) => (
                             <div key={question}>- {question}</div>
                           ))}
@@ -280,7 +280,7 @@ export default function Chat() {
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="Pergunte sobre eventos, veiculos, viagens ou KPIs..."
+              placeholder="Pergunte sobre eventos, veículos, viagens ou KPIs..."
               rows={2}
               className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm"
             />

@@ -1,26 +1,26 @@
 # FleetDoctor
 
-Assistente de diagnostico operacional para frotas com **IA generativa local** integrada ao fluxo de triagem.
+Assistente de diagnóstico operacional para frotas com **IA generativa local** integrada ao fluxo de triagem.
 
-## 1) Problema e solucao
+## 1) Problema e solução
 
-Em operacoes de frota, o gargalo nao e detectar evento, e sim transformar sinal em decisao acionavel.
+Em operações de frota, o gargalo não é detectar evento, e sim transformar sinal em decisão acionável.
 
 Problemas comuns:
-- alertas demais e pouca priorizacao
-- investigacao lenta entre telas/sistemas
-- diagnostico inconsistente entre analistas
+- alertas demais e pouca priorização
+- investigação lenta entre telas/sistemas
+- diagnóstico inconsistente entre analistas
 
-Solucao no FleetDoctor:
+Solução no FleetDoctor:
 - triagem operacional com filtros e drill-down
-- diagnostico por evento/viagem usando **LLM local + fallback deterministico**
-- chat operacional para perguntas livres sobre KPI, triagem, veiculos e viagens
-- geracao de relatorio executivo em HTML
-- importacao de eventos por CSV
+- diagnóstico por evento/viagem usando **LLM local + fallback determinístico**
+- chat operacional para perguntas livres sobre KPI, triagem, veículos e viagens
+- geração de relatório executivo em HTML
+- importação de eventos por CSV
 
 ## 2) Arquitetura de LLM
 
-Fluxo de diagnostico (`POST /api/diagnosis`):
+Fluxo de diagnóstico (`POST /api/diagnosis`):
 
 ```mermaid
 flowchart TD
@@ -31,7 +31,7 @@ flowchart TD
     C --> C3[run_llm Ollama]
     C --> C4[validate_output JSON/schema]
     C4 -->|ok| D[Resposta source=llm]
-    C4 -->|erro/timeout/json invalido| E[fallback deterministico]
+    C4 -->|erro/timeout/json inválido| E[fallback determinístico]
     E --> F[Resposta source=deterministic_fallback]
 ```
 
@@ -44,10 +44,10 @@ Stack:
 
 ## 3) Modelo local escolhido e trade-offs
 
-Escolha: **Ollama** com modelo primario + fallback de modelo.
+Escolha: **Ollama** com modelo primário + fallback de modelo.
 
-Modelos recomendados para esta versao:
-- primario: `qwen2.5:7b`
+Modelos recomendados para esta versão:
+- primário: `qwen2.5:7b`
 - fallback: `llama3.1:8b`
 
 Comandos sugeridos:
@@ -59,7 +59,7 @@ ollama pull llama3.1:8b
 Motivos:
 - custo zero por chamada
 - privacidade local
-- controle de latencia e disponibilidade
+- controle de latência e disponibilidade
 
 Trade-offs:
 - qualidade textual pode variar mais que APIs pagas
@@ -67,7 +67,7 @@ Trade-offs:
 - setup local exige ambiente preparado
 
 Se trocar para API paga:
-- ganho esperado: qualidade de raciocinio e tool calling mais robusto
+- ganho esperado: qualidade de raciocínio e tool calling mais robusto
 - perda esperada: custo por uso e menor controle de dados locais
 
 ## 4) Framework escolhido
@@ -75,14 +75,14 @@ Se trocar para API paga:
 Escolha: **LangGraph simples** (single graph) em vez de multiagente.
 
 Justificativa:
-- controla explicitamente o fluxo de contexto -> tools -> modelo -> validacao -> fallback
+- controla explicitamente o fluxo de contexto -> tools -> modelo -> validação -> fallback
 - menor complexidade operacional para prazo curto
-- suficiente para demonstrar decisao de engenharia de framework
+- suficiente para demonstrar decisão de engenharia de framework
 
-Implementacao do grafo:
+Implementação do grafo:
 - [backend/app/agents/langgraph_diagnosis_graph.py](backend/app/agents/langgraph_diagnosis_graph.py)
 
-## 5) Prompts e estrategia de prompting
+## 5) Prompts e estratégia de prompting
 
 Arquivos:
 - [prompts/system_prompt.txt](prompts/system_prompt.txt)
@@ -94,12 +94,12 @@ Arquivos:
 Estrategia aplicada:
 - system prompt com regras de comportamento e formato JSON estrito
 - templates separados por modo (evento vs viagem)
-- delimitacao clara entre instrucoes e dados operacionais
-- mitigacao de prompt injection: campos textuais tratados como dados, nunca como instrucao
+- delimitação clara entre instruções e dados operacionais
+- mitigação de prompt injection: campos textuais tratados como dados, nunca como instrução
 
 ## 6) Tools disponibilizadas ao LLM
 
-Especificacao completa:
+Especificação completa:
 - [tools/diagnosis_tools_spec.md](tools/diagnosis_tools_spec.md)
 - [tools/chat_tools_spec.md](tools/chat_tools_spec.md)
 
@@ -109,12 +109,12 @@ Tools:
 - `get_similar_events(event_type, region, limit)`
 - `get_vehicle_recent_history(vehicle_id, days)`
 
-Implementacao backend:
+Implementação backend:
 - [backend/app/services/diagnosis_tools.py](backend/app/services/diagnosis_tools.py)
 
 ## 7) Parametros do modelo
 
-Configuracoes por ambiente:
+Configurações por ambiente:
 - `LLM_PROVIDER` (default `ollama`)
 - `OLLAMA_BASE_URL` (default `http://localhost:11434`)
 - `OLLAMA_MODEL_PRIMARY` (default `qwen2.5:7b`)
@@ -134,18 +134,18 @@ Configuracoes por ambiente:
 - `LLM_WARMUP_ON_STARTUP` (default `true`)
 - `LLM_RETRY_JSON_INVALID` (default `1`)
 - `LLM_CHAT_RETRY_JSON_INVALID` (default `1`)
-- `LLM_FORCE_DETERMINISTIC` (forca fallback para testes/demo)
+- `LLM_FORCE_DETERMINISTIC` (força fallback para testes/demo)
 
 Racional:
-- temperatura baixa para consistencia
-- top-p moderado para manter variacao controlada
+- temperatura baixa para consistência
+- top-p moderado para manter variação controlada
 - timeout maior para absorver cold start local dos modelos
-- chat com modelo menor e timeout proprio para reduzir fallback por timeout
-- chat com `thinking` desativado para reduzir latencia e variabilidade de formato
+- chat com modelo menor e timeout próprio para reduzir fallback por timeout
+- chat com `thinking` desativado para reduzir latência e variabilidade de formato
 - warmup para reduzir fallback por primeira chamada
-- retry curto para respostas sem JSON valido
+- retry curto para respostas sem JSON válido
 
-## 8) Contrato de API de diagnostico
+## 8) Contrato de API de diagnóstico
 
 Endpoint: `POST /api/diagnosis`
 
@@ -180,11 +180,11 @@ Health da camada LLM:
 
 ## 9) Contrato de API de chat
 
-Criar sessao:
+Criar sessão:
 ```bash
 curl -X POST "http://localhost:8000/api/chat/sessions" \
   -H "Content-Type: application/json" \
-  -d "{\"title\":\"Analise operacional\"}"
+  -d "{\"title\":\"Análise operacional\"}"
 ```
 
 Enviar pergunta:
@@ -207,16 +207,16 @@ Resposta (resumo):
 
 ## 10) O que funcionou
 
-- arquitetura hibrida evitou quebra funcional quando modelo local falha
-- JSON schema + validacao reduziu respostas malformadas
-- tools de contexto melhoraram utilidade das recomendacoes
+- arquitetura híbrida evitou quebra funcional quando modelo local falha
+- JSON schema + validação reduziu respostas malformadas
+- tools de contexto melhoraram utilidade das recomendações
 - contrato da API foi mantido para o frontend existente
 
-## 11) O que nao funcionou / limitacoes
+## 11) O que não funcionou / limitações
 
-- modelo local pequeno pode produzir recomendacoes genericas
-- sem RAG nesta versao (usa somente contexto transacional atual)
-- sem score probabilistico calibrado
+- modelo local pequeno pode produzir recomendações genéricas
+- sem RAG nesta versão (usa somente contexto transacional atual)
+- sem score probabilístico calibrado
 - `upload/reset` continua destrutivo para contexto produtivo
 
 ## 12) Estrutura do repositorio
@@ -288,10 +288,10 @@ python -m app.seed
 uvicorn app.main:app --reload
 ```
 
-Observacao:
-- o backend carrega automaticamente `backend/.env` no startup (sem precisar exportar variaveis no terminal)
+Observação:
+- o backend carrega automaticamente `backend/.env` no startup (sem precisar exportar variáveis no terminal)
 
-Validacao rapida da camada LLM:
+Validação rápida da camada LLM:
 ```bash
 curl "http://localhost:8000/api/llm/health"
 ```
@@ -323,6 +323,6 @@ Executa:
 - `pytest` backend
 - `npm run build` frontend
 
-## 15) Roteiro de apresentacao
+## 15) Roteiro de apresentação
 
 - [docs/pitch_3min.md](docs/pitch_3min.md)
