@@ -51,6 +51,11 @@ type Diagnosis = {
   probable_causes: string[];
   recommended_actions: string[];
   evidence: string[];
+  source?: "llm" | "deterministic_fallback";
+  model?: string | null;
+  latency_ms?: number | null;
+  used_tools?: string[];
+  fallback_reason?: string | null;
 };
 
 function toDateInput(d: Date) {
@@ -444,9 +449,28 @@ export default function Triage() {
             </div>
 
             <div className="mt-6">
-              <div className="text-sm font-semibold text-slate-800">Diagnostico (mock)</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold text-slate-800">Diagnostico IA</div>
+                {diagnosis?.source ? (
+                  <span
+                    className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                      diagnosis.source === "llm"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {diagnosis.source === "llm" ? "LLM local" : "Fallback deterministico"}
+                  </span>
+                ) : null}
+              </div>
               {diagnosis ? (
                 <div className="mt-2 space-y-4 text-sm text-slate-700">
+                  {(diagnosis.model || diagnosis.latency_ms) && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                      {diagnosis.model ? <div><strong>Modelo:</strong> {diagnosis.model}</div> : null}
+                      {diagnosis.latency_ms ? <div><strong>Latencia:</strong> {diagnosis.latency_ms} ms</div> : null}
+                    </div>
+                  )}
                   <div>
                     <div className="text-xs uppercase text-slate-400">Resumo</div>
                     <p className="mt-1 text-sm leading-6">{diagnosis.summary}</p>
@@ -475,6 +499,12 @@ export default function Triage() {
                       ))}
                     </ul>
                   </div>
+                  {diagnosis.used_tools && diagnosis.used_tools.length > 0 ? (
+                    <div>
+                      <div className="text-xs uppercase text-slate-400">Tools usadas</div>
+                      <div className="mt-1 text-xs text-slate-600">{diagnosis.used_tools.join(", ")}</div>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="mt-2 text-sm text-slate-500">Carregando diagnostico...</div>
